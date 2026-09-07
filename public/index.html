@@ -120,6 +120,24 @@
   .fee-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px; }
   .fee-table td { padding: 3px 0; color: var(--muted); }
   .fee-table td:last-child { text-align: right; }
+  .fee-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; margin: 16px 0 22px; }
+  .fee-chart-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px 8px; }
+  .fee-chart-title { font-weight: 700; font-size: 14px; margin-bottom: 16px; }
+  .fee-bars { display: flex; align-items: flex-end; gap: 10px; height: 170px; padding: 0 2px; }
+  .fee-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; min-width: 0; }
+  .fee-bar-value { font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 4px; opacity: 0.75; }
+  .fee-bar-col.winner .fee-bar-value { color: var(--good); opacity: 1; }
+  .fee-bar-wrap { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
+  .fee-bar { width: 55%; min-width: 14px; border-radius: 5px 5px 0 0; background: var(--good); opacity: 0.28; }
+  .fee-bar-col.winner .fee-bar { opacity: 1; animation: fee-pulse 1.4s ease-in-out infinite; }
+  @keyframes fee-pulse {
+    0%, 100% { box-shadow: 0 0 6px 1px rgba(62,207,142,0.55); opacity: 1; }
+    50% { box-shadow: 0 0 18px 6px rgba(62,207,142,0.95); opacity: 0.8; }
+  }
+  .fee-logo { width: 26px; height: 26px; border-radius: 50%; margin-top: 8px; object-fit: contain; background: #1c2028; padding: 4px; opacity: 0.4; box-sizing: border-box; }
+  .fee-bar-col.winner .fee-logo { opacity: 1; box-shadow: 0 0 0 2px var(--good); }
+  .fee-name { font-size: 10px; color: var(--muted); margin-top: 5px; text-align: center; opacity: 0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .fee-bar-col.winner .fee-name { color: var(--good); font-weight: 700; opacity: 1; }
   .error-msg { color: var(--bad); font-size: 12px; margin-top: 8px; }
   #loading, #empty { text-align: center; color: var(--muted); padding: 40px 0; }
   footer { text-align: center; color: var(--muted); font-size: 11px; padding: 20px; }
@@ -205,6 +223,16 @@
     <section id="tab-rates">
       <div id="loading">Loading…</div>
       <div id="empty" hidden>No data yet. It will appear after the Cloud Function's first run.</div>
+      <div class="fee-charts">
+        <div class="fee-chart-card">
+          <div class="fee-chart-title">Buy Fee — USD → USDT</div>
+          <div class="fee-bars" id="fee-chart-buy"></div>
+        </div>
+        <div class="fee-chart-card">
+          <div class="fee-chart-title">Sell Fee — USDT → USD</div>
+          <div class="fee-bars" id="fee-chart-sell"></div>
+        </div>
+      </div>
       <div class="cards" id="cards"></div>
     </section>
 
@@ -512,11 +540,73 @@
       // Keep the other two tabs in sync with whatever just changed.
       renderLeaderboard();
       renderCalculatorComparison();
+      renderFeeCharts();
     }, (err) => {
       loadingEl.hidden = true;
       cardsEl.innerHTML = `<div class="error-msg">Could not read data: ${err.message}<br/>Make sure you are signed in with an @${ALLOWED_DOMAIN} account.</div>`;
     });
   }
+
+  // -----------------------------------------------------------------------
+  // Rates tab — fee comparison bar charts
+  // -----------------------------------------------------------------------
+
+      const LOGO_DATA_URIS = {
+        werty: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABSklEQVR4AdXBu04CQRgG0G9mfphFQK5S2NhIYvAVLDQ22tgYEivfQmsLY6lPYGdiY+IlsTFakljZGS19ASELC+zOLDNOzBaEhKAl52D+CfxDiqixVCk9FfK5kzBSD8aYtsAMjDEPQCwEr9Wq5RYJUWeM5SwwjCL1TJhCcF4pl4o3Mp3aaHf8A8+Te5zzZSRIiBU4hDHsF7LG2KBcLFzJdGoTzmI+d0ok6hhjre3DISSIaLVaKt4TiXov6F9Imd5BgkisYYKO4084BIcxlqqWindEogEnn8seY4YoUi9wOJyMJ/eJxDr+KI5H70rrNzgcjpTpbUynASiM6Qb9MyQ4HAYmkVBat0Yj84VErz8413H8gUQYqcdhGF4jIeBYi3Ah4zWV1q/fHb9prOlIKbcGg+Gl3wuOjLG+58ndMIxuO3730FqrMIkxRphLP+zxdyflUYlfAAAAAElFTkSuQmCC",
+        gecrypto: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAB/0lEQVR4AWMY+oCZAQfgFpSWN/Cq7pXRdg/6+PLW5V/fP75nwAKYGdAAO7eQqIZtaqlZaPcCFjZuXg4eETEdl4JGbgEZuY8vblz6/ePTRwYkwMgABSzs3DySavZecnq+UYxMTEwPzq1b8PT67g1CwqIyetahaewKPv68Iopq906vnHP9wLS2bx9fPGUAAmYGKOATVdIQktEzfXp159obh2d1fn//8I6wiKgMw/////jYfzP+fX365JdX1y/xyto4/v397cu7p5fPMgABEwMUyOkH5GrYZdRIajj5s3MLi/3+/fuXkJCwlJaWjs3fv3//PHzy7M7nfwIC3IKymvzi6jYMUMDMAAVcwoqr3j2+cFBez9tK0z6jmo2TT4Dp17u3T589vc0t5+qj4V4/mUtAWuHJ5Q2nObk4Qx9f29fIAAQsDFAgLKv3jUdQRuv6wRntTMysjBp2aRVsXJGZyv///fv94/PHi9vbKz6/ffhTQFKr8s/v398YoICRAQrYuYVEVS3jymR1fbK+vn/y7N7pFR3sXAKcDExMzF/ePvokKGtYzsTEJv/m4akZ7x6d7fzz69sLBiBgZEAD7NzCEorGoRUS6g7pX989evD7x5e/zGzcKi/vHJ7z8vbB9t8/Pj9lQAKMDDgAO7eQtKyeb9X/f/9Ynlze0vrz2/tHDMMTAACPDsEQWVIyHgAAAABJRU5ErkJggg==",
+        alltrust: "data:image/x-icon;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABmJLR0QA/wD/AP+gvaeTAAADo0lEQVRYw73XW4iVVRQH8N+ei6JpjhesLMPJu0RkdHlJsEAfwoIeIgVRKAuCkYiIniro8hKIiEplhFEG1UMPFhZ2RQoJjCxJTDNHG7yMiTZztMkzc3YP+zuc4+nMOZ9p/WFz9rf22nv991pr77NXkBcbIhHB1XgIyzFDkh7A29gs6hXQFXIt21xrY2aYUbgHT+AOtNVoFrETa/EJBgzh8cYmGo9uiNCC2zPDSzC6CeWz+DAjsgulRt6oP5IMQycew0pMzuXTCo7jTbxmSLdWdcNyoaRieDyWoQtzmnpqeETsxXq8JzpTmx+VXjI+AovwJO5E+780XIsidmANPkOxTCJUGR+HZ/EIxl4mw7Xowyt4Cf26glCVaC/gabTmcmwt8gdpEC+KnhfElkw4H6tyGc/Q1sKI1tRaW4YhNcxUPIqbxMpZvlveLC8xdyLP3UbHyCTqKfDMtxw7m9sTU7BQ8EOZQGeuaekmtGoeD86sEkf2nGLd7twECDrFFPuyW3IRmNXB/TfUrBVYPpvJo11MKNqpEMi9+wdm0HllEnX3cbg/9W+exL2dmV5+Ejl3nuHaMSytcv2mn5LrF0xJXjhXTL+xlkQwbGjyE4jc18m8Cenz1z4+7+HGifw+kIxeN5anbqlMaQkcP8e7BxgYrE8id+wnjGL5rLQofHCQeeN5dSHtDQL5UXciMBzy5UBk8VRuzQ5q7598fJilsxob/2uIt/YxULyUEESuGMGKOenSge1H2Heag3/w/i8MlRK5mR1p/PQAn/Zw4Swaie0doAAAAABJRU5ErkJggg==",
+        bitcasa: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZlcnNpb249IjEuMSIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIj48c3ZnIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmVyc2lvbj0iMS4xIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgd2lkdGg9IjUxMiIgaGVpZ2h0PSI1MTIiPjxzdmcgd2lkdGg9IjUxMiIgaGVpZ2h0PSI1MTIiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cGF0aCBkPSJNMzk5LjMzMSAzNjIuMTg3VjMzOC43MTNDMzk5LjMzMSAzMzEuODQyIDM5My43NjUgMzI2LjI3MSAzODYuODk5IDMyNi4yNzFMMzYzLjQ0MiAzMjYuMjcxQzM1Ni41NzYgMzI2LjI3MSAzNTEuMDA5IDMzMS44NDIgMzUxLjAwOSAzMzguNzEzVjM2Mi4xODdDMzUxLjAwOSAzNjkuMDU5IDM1Ni41NzYgMzc0LjYyOSAzNjMuNDQyIDM3NC42MjlMMzg2Ljg5OSAzNzQuNjI5QzM5My43NjUgMzc0LjYyOSAzOTkuMzMxIDM2OS4wNTkgMzk5LjMzMSAzNjIuMTg3WiIgZmlsbD0iI0ZGQkUwRSI+PC9wYXRoPgo8cGF0aCBkPSJNNDk1Ljk5NyAyNjUuNDczVjI0MS45OTlDNDk1Ljk5NyAyMzUuMTI4IDQ5MC40MzEgMjI5LjU1OCA0ODMuNTY1IDIyOS41NThMMjMzLjQ0NCAyMjkuNTU4QzIzMC4xNDggMjI5LjU1OCAyMjYuOTg1IDIyOC4yNDYgMjI0LjY1MyAyMjUuOTEzTDE0MC40NDIgMTQxLjY0M0MxMzUuNTg5IDEzNi43ODYgMTI3LjcxOCAxMzYuNzg2IDEyMi44NjEgMTQxLjY0M0wxOS42NCAyNDQuOTQxQzE0Ljc4NjUgMjQ5Ljc5OCAxNC43ODY1IDI1Ny42NzUgMTkuNjQgMjYyLjUzNUwxMjIuODYxIDM2NS44MzNDMTI3LjcxNSAzNzAuNjkgMTM1LjU4NiAzNzAuNjkgMTQwLjQ0MiAzNjUuODMzTDIyNC42NTMgMjgxLjU2QzIyNi45ODUgMjc5LjIyNiAyMzAuMTQ4IDI3Ny45MTUgMjMzLjQ0NCAyNzcuOTE1TDM4Ni45MjUgMjc3LjkxNUMzOTMuNzkxIDI3Ny45MTUgMzk5LjM1NyAyODMuNDg2IDM5OS4zNTcgMjkwLjM1N1YzMTMuODM0QzM5OS4zNTcgMzIwLjcwNiA0MDQuOTIzIDMyNi4yNzYgNDExLjc5IDMyNi4yNzZMNDM1LjI0NiAzMjYuMjc2QzQ0Mi4xMTMgMzI2LjI3NiA0NDcuNjc5IDMyMC43MDYgNDQ3LjY3OSAzMTMuODM0VjI5MC4zNTdDNDQ3LjY3OSAyODMuNDg2IDQ1My4yNDUgMjc3LjkxNSA0NjAuMTExIDI3Ny45MTVMNDgzLjU2NSAyNzcuOTE1QzQ5MC40MzEgMjc3LjkxNSA0OTUuOTk3IDI3Mi4zNDUgNDk1Ljk5NyAyNjUuNDczWk0xMjIuODYxIDMwMC41MjNMODQuOTAxNiAyNjIuNTM1QzgwLjA0OCAyNTcuNjc4IDgwLjA0OCAyNDkuODAxIDg0LjkwMTYgMjQ0Ljk0MUwxMjIuODYxIDIwNi45NTNDMTI3LjcxNSAyMDIuMDk2IDEzNS41ODYgMjAyLjA5NiAxNDAuNDQyIDIwNi45NTNMMTc4LjQwMiAyNDQuOTQxQzE4My4yNTYgMjQ5Ljc5OCAxODMuMjU2IDI1Ny42NzUgMTc4LjQwMiAyNjIuNTM1TDE0MC40NDIgMzAwLjUyM0MxMzUuNTg5IDMwNS4zOCAxMjcuNzE4IDMwNS4zOCAxMjIuODYxIDMwMC41MjNaIiBmaWxsPSIjRkZCRTBFIj48L3BhdGg+CjxwYXRoIGQ9Ik00OTYgMzYyLjE4N1YzMzguNzEzQzQ5NiAzMzEuODQyIDQ5MC40MzQgMzI2LjI3MSA0ODMuNTY3IDMyNi4yNzFMNDYwLjExMSAzMjYuMjcxQzQ1My4yNDUgMzI2LjI3MSA0NDcuNjc4IDMzMS44NDIgNDQ3LjY3OCAzMzguNzEzVjM2Mi4xODdDNDQ3LjY3OCAzNjkuMDU5IDQ1My4yNDUgMzc0LjYyOSA0NjAuMTExIDM3NC42MjlMNDgzLjU2NyAzNzQuNjI5QzQ5MC40MzQgMzc0LjYyOSA0OTYgMzY5LjA1OSA0OTYgMzYyLjE4N1oiIGZpbGw9IiNGRkJFMEUiPjwvcGF0aD4KPC9zdmc+PC9zdmc+PHN0eWxlPkBtZWRpYSAocHJlZmVycy1jb2xvci1zY2hlbWU6IGxpZ2h0KSB7IDpyb290IHsgZmlsdGVyOiBub25lOyB9IH0KQG1lZGlhIChwcmVmZXJzLWNvbG9yLXNjaGVtZTogZGFyaykgeyA6cm9vdCB7IGZpbHRlcjogbm9uZTsgfSB9Cjwvc3R5bGU+PC9zdmc+",
+        gauscrypto: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAAsTAAALEwEAmpwYAAACKElEQVRYhe2XP2gTcRTHP+8axElEQSpqzSAuLhLQoWml7SJFsEsHras6WQSrYnCoOCiCDopIHQUpSI0IBevQxfypf0AEpYUKgpZQoaBTmt8lubvn4KXGpEcbje3g/eA3vHfvfd/nvd8ddyeqynoua12rhwAhQAgARJohciDZ2eba3HcKWnJsTs0MZhZWm9uUCYgwZEW47TmM4XG6kdzmHIGwEyGHklPYveYAIsSWDI/9awrQ/vxQDCFasVWJ7b3eEQ3OaDKAtJD4zQbLczURFN9UgK5UV78I/dU+BfA4GU3Ee/4pQG+6t8cS60GN2xNfV12SOwbjB1fSkUa/B45lBzaWtHi+qPawwURKRYfyouKW2G4WdItbZNrJK+U8lPNqO4skHJt73x9NlVYEePh2bFuZ8mZbDUYNtr+NFjYYNVFbTbdRM2CrabXVYDD4ALnXfeld++52RNwS35y8bvIBfBDmynkddfK8cIy+d9+9mq/UrD2Cy8Bs/ZYPgowD5wRa67qweAwwfSbj4PF0mUbbgEsKE6pcqL7QwD0QcFRCQSy5tRTlcQNwglSkxm4AoDbV91oMvTySylXs2YuZGfUYDlKpbeOvJmBhDae7UyO1/k9XstfU485qVP9wAvJZxOqb7Jy8GhQ9dzN7Vj1OoMwHxUD96/gL8KbaUdV3AeQjyEREWp4l4+PLPlbV6+vI1OjW4+1PUD2KchjYIz9r/Gol/C8IAUKA/x7gB5538eYf1ZXWAAAAAElFTkSuQmCC",
+        stellex: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHg9IjMiIHk9IjMiIHdpZHRoPSIxOTEuNjQ5IiBoZWlnaHQ9IjE5NC42MjUiIHJ4PSI0Mi42NzQ1IiBzdHJva2U9IiNGNDVDMkYiIHN0eWxlPSJzdHJva2U6I0Y0NUMyRjtzdHJva2U6Y29sb3IoZGlzcGxheS1wMyAwLjk1NjYgMC4zNjA3IDAuMTgzOCk7c3Ryb2tlLW9wYWNpdHk6MTsiIHN0cm9rZS13aWR0aD0iMy40ODQxNSIgc3Ryb2tlLW1pdGVybGltaXQ9IjEwIi8+CjxwYXRoIGQ9Ik0xMzkuOTY3IDM4TDExOS4zNzMgNTguOTE0Mkw5OC43OCA3OS44Mjg0TDc4LjE4NjcgNTguOTE0Mkw1Ny41OTMzIDM4TDM3IDU4LjkxNDJMNTcuNTkzMyA3OS44Mjg0QzY4Ljk2NSA5MS4zNzcyIDg3LjQwODQgOTEuMzc3MiA5OC43OCA3OS44Mjg0QzExMC4xNTIgOTEuMzc3MiAxMjguNTk1IDkxLjM3NzIgMTM5Ljk2NyA3OS44Mjg0TDE2MC41NiA1OC45MTQyTDEzOS45NjcgMzhaIiBmaWxsPSIjRjQ1QzJGIiBzdHlsZT0iZmlsbDojRjQ1QzJGO2ZpbGw6Y29sb3IoZGlzcGxheS1wMyAwLjk1NjYgMC4zNjA3IDAuMTgzOCk7ZmlsbC1vcGFjaXR5OjE7Ii8+CjxwYXRoIGQ9Ik0xMzkuOTY3IDEyMS42NDZDMTI4LjU5NSAxMTAuMDk3IDExMC4xNTIgMTEwLjA5NyA5OC43OCAxMjEuNjQ2Qzg3LjQwODQgMTEwLjA5NyA2OC45NjUgMTEwLjA5NyA1Ny41OTMzIDEyMS42NDZMMzcgMTQyLjU2TDU3LjU5MzMgMTYzLjQ3NEw3OC4xODY3IDE0Mi41Nkw5OC43OCAxMjEuNjQ2TDExOS4zNzMgMTQyLjU2TDEzOS45NjcgMTYzLjQ3NEwxNjAuNTYgMTQyLjU2TDEzOS45NjcgMTIxLjY0NloiIGZpbGw9IiNGNDVDMkYiIHN0eWxlPSJmaWxsOiNGNDVDMkY7ZmlsbDpjb2xvcihkaXNwbGF5LXAzIDAuOTU2NiAwLjM2MDcgMC4xODM4KTtmaWxsLW9wYWNpdHk6MTsiLz4KPC9zdmc+Cg==",
+        // plex: no distinct logo available — falls back to a text-initials badge.
+      };
+
+      function feePercentFor(key, data, dir) {
+        if (data.type === "fee_only") {
+          const tiers = (data.feeTiers && data.feeTiers[dir]) || [];
+          for (const t of tiers) {
+            const raw = (t.value && (t.value.en || t.value.ka)) || "";
+            const m = raw.match(/(-?\d+(\.\d+)?)\s*%/);
+            if (m) return parseFloat(m[1]);
+          }
+          return null;
+        }
+        const rate = dir === "buy" ? data.usdToUsdtRate : data.usdtToUsdRate;
+        if (typeof rate !== "number") return null;
+        return (rate - 1) * 100;
+      }
+
+      function renderFeeCharts() {
+        const buyEl = document.getElementById("fee-chart-buy");
+        const sellEl = document.getElementById("fee-chart-sell");
+        if (!buyEl || !sellEl) return;
+        renderOneFeeChart(buyEl, "buy");
+        renderOneFeeChart(sellEl, "sell");
+      }
+
+      function renderOneFeeChart(el, dir) {
+        const entries = Object.entries(latestRates)
+          .map(([key, d]) => ({ key, d, pct: feePercentFor(key, d, dir) }))
+          .filter((e) => typeof e.pct === "number" && !Number.isNaN(e.pct));
+        if (!entries.length) { el.innerHTML = "<p class='hint'>No data yet.</p>"; return; }
+        entries.sort((a, b) => a.pct - b.pct);
+        const max = Math.max(...entries.map((e) => e.pct), 0.01);
+        const min = entries[0].pct;
+        el.innerHTML = entries.map((e) => {
+          const isWinner = e.pct === min;
+          const heightPct = Math.max(8, (e.pct / max) * 100);
+          const logo = LOGO_DATA_URIS[e.key]
+            ? `<img class="fee-logo" src="${LOGO_DATA_URIS[e.key]}" alt="" />`
+            : `<div class="fee-logo" style="display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--text);">${(e.d.label || e.key).slice(0, 2).toUpperCase()}</div>`;
+          return `
+            <div class="fee-bar-col${isWinner ? " winner" : ""}">
+              <div class="fee-bar-value">${e.pct.toFixed(2)}%</div>
+              <div class="fee-bar-wrap"><div class="fee-bar" style="height:${heightPct}%"></div></div>
+              ${logo}
+              <div class="fee-name">${e.d.label || e.key}</div>
+            </div>`;
+        }).join("");
+      }
 
   // -----------------------------------------------------------------------
   // Analytics tab — best-rate leaderboard
