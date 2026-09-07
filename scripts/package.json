@@ -1,0 +1,12 @@
+{
+  "name": "plex-rates-scripts",
+  "description": "Scheduled scripts (run by GitHub Actions) that refresh PLEX's competitor USD/USDT rate data in Firestore — no Firebase Blaze plan required.",
+  "private": true,
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.6.0"
+  }
+}

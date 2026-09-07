@@ -1,0 +1,48 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Only @plex-team.com Google accounts can read. This is the real
+    // enforcement point — the "hd" hint on the Google sign-in button and the
+    // client-side check in public/index.html are just UX (they stop a wrong
+    // account from getting halfway through sign-in); a user could bypass
+    // both, but not this rule, since Firestore evaluates it server-side.
+    function isPlexTeam() {
+      return request.auth != null &&
+        request.auth.token.email != null &&
+        request.auth.token.email_verified == true &&
+        request.auth.token.email.matches('.*@plex-team[.]com$');
+    }
+
+    match /rates/{companyId} {
+      allow read: if isPlexTeam();
+      allow write: if false; // only the GitHub Actions script (Admin SDK) writes here
+
+      match /history/{dateId} {
+        allow read: if isPlexTeam();
+        allow write: if false;
+      }
+
+      // One document per detected rate change — what the Analytics tab and
+      // the weekly report are built from. GitHub Actions-only writes.
+      match /changes/{changeId} {
+        allow read: if isPlexTeam();
+        allow write: if false;
+      }
+    }
+
+    // Auto-generated micro weekly report (Monday 08:00 Asia/Tbilisi).
+    match /weekly_reports/{weekId} {
+      allow read: if isPlexTeam();
+      allow write: if false;
+    }
+
+    // PLEX's own rates, entered by the team in the "PLEX Calculator" tab —
+    // unlike everything else above, this one IS writable by team members
+    // directly from the dashboard (there is no scheduled script for it).
+    match /plex/{docId} {
+      allow read, write: if isPlexTeam();
+    }
+  }
+}

@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PLEX — Competitor Rates</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --card: #171a21;
+    --border: #262b35;
+    --text: #e8eaed;
+    --muted: #8b93a1;
+    --accent: #4f8cff;
+    --good: #3ecf8e;
+    --bad: #ff6b6b;
+    --warn: #f5b84f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header {
+    padding: 24px 20px 0;
+    max-width: 1040px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 20px; margin: 0; }
+  header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  main { max-width: 1040px; margin: 0 auto; padding: 12px 20px 60px; }
+  #signin-screen { text-align: center; padding: 80px 20px; }
+  #signin-screen p { color: var(--muted); margin-bottom: 20px; }
+  button, input {
+    font: inherit;
+    color: inherit;
+  }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 18px;
+    background: var(--accent);
+    color: white;
+    font-weight: 600;
+  }
+  button.secondary { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  button.ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  button.ghost.active { background: var(--accent); color: white; border-color: var(--accent); }
+  input[type="number"] {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    width: 140px;
+  }
+  #user-bar { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+  #user-bar img { width: 28px; height: 28px; border-radius: 50%; }
+
+  /* Tabs */
+  .tabs {
+    max-width: 1040px;
+    margin: 18px auto 0;
+    padding: 0 20px;
+    display: flex;
+    gap: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab-btn {
+    background: transparent;
+    color: var(--muted);
+    border: none;
+    border-radius: 0;
+    padding: 10px 4px;
+    margin-right: 18px;
+    font-weight: 600;
+    font-size: 14px;
+    border-bottom: 2px solid transparent;
+  }
+  .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+    margin-top: 16px;
+  }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .card-head a { color: var(--text); text-decoration: none; font-weight: 700; font-size: 15px; }
+  .badge { font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: 600; white-space: nowrap; }
+  .badge.ok { background: rgba(62,207,142,0.15); color: var(--good); }
+  .badge.err { background: rgba(255,107,107,0.15); color: var(--bad); }
+  .badge.stale { background: rgba(245,184,79,0.15); color: var(--warn); }
+  .badge.info { background: rgba(79,140,255,0.15); color: var(--accent); }
+  .row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; border-top: 1px solid var(--border); }
+  .row:first-of-type { border-top: none; }
+  .row .label { color: var(--muted); }
+  .row .value { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .updated { margin-top: 10px; font-size: 11px; color: var(--muted); }
+  .updated strong { color: var(--text); font-weight: 600; }
+  .fee-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px; }
+  .fee-table td { padding: 3px 0; color: var(--muted); }
+  .fee-table td:last-child { text-align: right; color: var(--text); font-weight: 600; }
+  .error-msg { color: var(--bad); font-size: 12px; margin-top: 8px; }
+  #loading, #empty { text-align: center; color: var(--muted); padding: 40px 0; }
+  footer { text-align: center; color: var(--muted); font-size: 11px; padding: 20px; }
+  [hidden] { display: none !important; }
+
+  /* Analytics + Calculator sections */
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    margin-top: 16px;
+  }
+  .panel h2 { font-size: 15px; margin: 0 0 4px; }
+  .panel .hint { color: var(--muted); font-size: 12px; margin: 0 0 14px; }
+  .period-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
+  table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.data-table th {
+    text-align: left;
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  table.data-table td {
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--border);
+    font-variant-numeric: tabular-nums;
+  }
+  table.data-table tr:last-child td { border-bottom: none; }
+  table.data-table td:not(:first-child), table.data-table th:not(:first-child) { text-align: right; }
+  .pos { color: var(--bad); } /* PLEX priced higher than competitor = less competitive */
+  .neg { color: var(--good); } /* PLEX priced lower than competitor = more competitive */
+  .leaderboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .lb-item {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .lb-item .lb-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+  .lb-item .lb-value { font-size: 18px; font-weight: 700; margin-top: 4px; }
+  .lb-item .lb-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .calc-form { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; margin-bottom: 18px; }
+  .calc-field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .summary-line { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+  .summary-line strong { color: var(--text); }
+</style>
+</head>
+<body>
+
+<div id="signin-screen">
+  <h1>PLEX — USD/USDT Competitor Rates</h1>
+  <p>This dashboard is restricted to <strong>@plex-team.com</strong> accounts. Please sign in to continue.</p>
+  <button id="signin-btn">Sign in with Google</button>
+  <p id="signin-error" class="error-msg" hidden></p>
+</div>
+
+<div id="app" hidden>
+  <header>
+    <div>
+      <h1>PLEX — Competitor Rates</h1>
+      <p>USD ⇄ USDT, refreshed multiple times a day</p>
+    </div>
+    <div id="user-bar">
+      <img id="user-photo" src="" alt="" hidden />
+      <span id="user-email"></span>
+      <button class="secondary" id="signout-btn">Sign out</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="rates">Rates</button>
+    <button class="tab-btn" data-tab="analytics">Analytics</button>
+    <button class="tab-btn" data-tab="calculator">PLEX Calculator</button>
+  </nav>
+
+  <main>
+    <!-- Rates tab -->
+    <section id="tab-rates">
+      <div id="loading">Loading…</div>
+      <div id="empty" hidden>No data yet. It will appear after the Cloud Function's first run.</div>
+      <div class="cards" id="cards"></div>
+    </section>
+
+    <!-- Analytics tab -->
+    <section id="tab-analytics" hidden>
+      <div class="panel">
+        <h2>Best rate right now</h2>
+        <p class="hint">Lower is better for the client on both sides — this is who currently offers it.</p>
+        <div class="leaderboard" id="leaderboard"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Rate-change activity</h2>
+        <p class="hint">How often each competitor changes its price, and by how much — a proxy for how closely they track the market.</p>
+        <div class="period-toggle">
+          <button class="ghost" data-period="7">Last 7 days</button>
+          <button class="ghost active" data-period="30">Last 30 days</button>
+        </div>
+        <div id="activity-table-wrap">Loading…</div>
+      </div>
+
+      <div class="panel">
+        <h2>Weekly auto-report</h2>
+        <p class="hint">Generated automatically every Monday morning from the same change data above.</p>
+        <div id="weekly-report">Loading…</div>
+      </div>
+    </section>
+
+    <!-- PLEX Calculator tab -->
+    <section id="tab-calculator" hidden>
+      <div class="panel">
+        <h2>Your current rates</h2>
+        <p class="hint">Enter PLEX's own USD ⇄ USDT rates. Saved for the whole team, and compared automatically against every competitor below.</p>
+        <div class="calc-form">
+          <div class="calc-field">
+            <label>Buy (USD → USDT)</label>
+            <input type="number" step="0.0001" id="plex-buy" placeholder="e.g. 1.0050" />
+          </div>
+          <div class="calc-field">
+            <label>Sell (USDT → USD)</label>
+            <input type="number" step="0.0001" id="plex-sell" placeholder="e.g. 1.0150" />
+          </div>
+          <button id="plex-save-btn">Save</button>
+        </div>
+        <p class="updated" id="plex-updated"></p>
+        <p id="plex-save-error" class="error-msg" hidden></p>
+      </div>
+
+      <div class="panel">
+        <h2>How you compare</h2>
+        <p id="calc-summary" class="summary-line">Enter your rates above to see a comparison.</p>
+        <div id="calc-table-wrap"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>Rates are pulled from each company's own public website and may occasionally lag or fail to update.</footer>
+</div>
+
+<!-- Firebase (modular SDK via Google's own CDN) -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import {
+    getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import {
+    getFirestore, collection, onSnapshot, orderBy, query, where,
+    doc, setDoc, getDocs, serverTimestamp, limit,
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  // ---------------------------------------------------------------------
+  // TODO: paste your own web app config here (Firebase console → Project
+  // settings → General → Your apps → SDK setup and configuration).
+  // ---------------------------------------------------------------------
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT_ID.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID",
+  };
+
+  // Only Google accounts on this domain may use the dashboard. This is a
+  // convenience hint for Google's own account picker only — the real
+  // enforcement is the Firestore security rule (firestore.rules), which
+  // checks the signed-in user's email server-side no matter what the client
+  // does. Change this if PLEX's team domain is ever different.
+  const ALLOWED_DOMAIN = "plex-team.com";
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({hd: ALLOWED_DOMAIN});
+
+  const signinScreen = document.getElementById("signin-screen");
+  const appEl = document.getElementById("app");
+  const signinBtn = document.getElementById("signin-btn");
+  const signinError = document.getElementById("signin-error");
+  const signoutBtn = document.getElementById("signout-btn");
+  const userEmail = document.getElementById("user-email");
+  const userPhoto = document.getElementById("user-photo");
+  const cardsEl = document.getElementById("cards");
+  const loadingEl = document.getElementById("loading");
+  const emptyEl = document.getElementById("empty");
+
+  signinBtn.addEventListener("click", async () => {
+    signinError.hidden = true;
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (e) {
+      signinError.textContent = "Sign-in failed: " + e.message;
+      signinError.hidden = false;
+    }
+  });
+
+  signoutBtn.addEventListener("click", () => signOut(auth));
+
+  let unsubscribeRates = null;
+  let unsubscribePlex = null;
+
+  onAuthStateChanged(auth, (user) => {
+    if (user && user.email && user.email.toLowerCase().endsWith("@" + ALLOWED_DOMAIN)) {
+      signinScreen.hidden = true;
+      appEl.hidden = false;
+      userEmail.textContent = user.email || "";
+      if (user.photoURL) {
+        userPhoto.src = user.photoURL;
+        userPhoto.hidden = false;
+      }
+      subscribeToRates();
+      subscribeToPlexRates(user.email);
+    } else {
+      if (unsubscribeRates) { unsubscribeRates(); unsubscribeRates = null; }
+      if (unsubscribePlex) { unsubscribePlex(); unsubscribePlex = null; }
+      appEl.hidden = true;
+      signinScreen.hidden = false;
+      if (user) {
+        signInErrorForWrongDomain();
+      }
+    }
+  });
+
+  function signInErrorForWrongDomain() {
+    signinError.textContent =
+      `This dashboard is restricted to @${ALLOWED_DOMAIN} accounts.`;
+    signinError.hidden = false;
+    signOut(auth);
+  }
+
+  // -----------------------------------------------------------------------
+  // Tabs
+  // -----------------------------------------------------------------------
+  const tabButtons = document.querySelectorAll(".tab-btn");
+  const tabSections = {
+    rates: document.getElementById("tab-rates"),
+    analytics: document.getElementById("tab-analytics"),
+    calculator: document.getElementById("tab-calculator"),
+  };
+  let analyticsLoadedFor = null; // which period (days) has been rendered
+
+  tabButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      tabButtons.forEach((b) => b.classList.toggle("active", b === btn));
+      const tab = btn.dataset.tab;
+      Object.entries(tabSections).forEach(([name, el]) => { el.hidden = name !== tab; });
+      if (tab === "analytics" && analyticsLoadedFor === null) {
+        loadActivityTable(30);
+        loadWeeklyReport();
+      }
+      if (tab === "analytics" || tab === "calculator") {
+        renderLeaderboard();
+        renderCalculatorComparison();
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-period]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("[data-period]").forEach((b) => b.classList.toggle("active", b === btn));
+      loadActivityTable(Number(btn.dataset.period));
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Formatting helpers
+  // -----------------------------------------------------------------------
+  function fmtRate(n) {
+    if (n === undefined || n === null || Number.isNaN(n)) return "—";
+    return Number(n).toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 4 });
+  }
+
+  // Full day + time, e.g. "Sep 7, 2026, 3:00 PM" — shown for every single
+  // company so it's always explicit exactly when that number last changed.
+  function fmtDateTime(ts) {
+    if (!ts) return "never";
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return d.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+  }
+
+  function fmtPercent(n, digits = 2) {
+    if (n === undefined || n === null || Number.isNaN(n)) return "—";
+    const sign = n > 0 ? "+" : "";
+    return `${sign}${n.toFixed(digits)}%`;
+  }
+
+  function hoursSince(ts) {
+    if (!ts) return Infinity;
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return (Date.now() - d.getTime()) / 3600000;
+  }
+
+  // -----------------------------------------------------------------------
+  // Rates tab
+  // -----------------------------------------------------------------------
+  const STALE_AFTER_HOURS = 20; // updates run at 09:00/15:00/21:00 — a gap this long means every run today failed
+
+  let latestRates = {}; // key -> data, kept for the Analytics leaderboard and the Calculator
+
+  function renderFeeTable(feeTiers) {
+    if (!feeTiers) return "<p class='row'><span class='label'>No fee data found</span></p>";
+    const rows = [];
+    (feeTiers.buy || []).forEach((t) => {
+      rows.push(`<tr><td>Buy · ${t.range?.en || t.range?.ka || ""}</td><td>${t.value?.en || t.value?.ka || ""}</td></tr>`);
+    });
+    (feeTiers.sell || []).forEach((t) => {
+      rows.push(`<tr><td>Sell · ${t.range?.en || t.range?.ka || ""}</td><td>${t.value?.en || t.value?.ka || ""}</td></tr>`);
+    });
+    return `<table class="fee-table">${rows.join("")}</table>` +
+      (feeTiers.note ? `<div class="updated">${feeTiers.note.en || feeTiers.note.ka || ""}</div>` : "");
+  }
+
+  function renderCard(id, data) {
+    const isStale = data.type !== "fee_only" && hoursSince(data.updatedAt) > STALE_AFTER_HOURS;
+    const badge = data.lastError
+      ? `<span class="badge err">Error</span>`
+      : isStale
+        ? `<span class="badge stale">Stale</span>`
+        : `<span class="badge ok">Live</span>`;
+
+    let body;
+    if (data.type === "fee_only") {
+      body = renderFeeTable(data.feeTiers);
+    } else {
+      body = `
+        <div class="row">
+          <span class="label">Buy (USD → USDT)</span>
+          <span class="value">${fmtRate(data.usdToUsdtRate)}</span>
+        </div>
+        <div class="row">
+          <span class="label">Sell (USDT → USD)</span>
+          <span class="value">${fmtRate(data.usdtToUsdRate)}</span>
+        </div>`;
+    }
+
+    const errorLine = data.lastError
+      ? `<div class="error-msg">Last error${data.consecutiveFailures > 1 ? ` (${data.consecutiveFailures}x in a row)` : ""}: ${data.lastError}</div>`
+      : "";
+
+    return `
+      <div class="card">
+        <div class="card-head">
+          <a href="${data.website || "#"}" target="_blank" rel="noopener">${data.label || id}</a>
+          ${badge}
+        </div>
+        ${body}
+        ${errorLine}
+        <div class="updated">Last changed: <strong>${fmtDateTime(data.updatedAt)}</strong></div>
+      </div>`;
+  }
+
+  function subscribeToRates() {
+    loadingEl.hidden = false;
+    emptyEl.hidden = true;
+    cardsEl.innerHTML = "";
+
+    const q = query(collection(db, "rates"), orderBy("label"));
+    unsubscribeRates = onSnapshot(q, (snap) => {
+      loadingEl.hidden = true;
+      latestRates = {};
+      if (snap.empty) {
+        emptyEl.hidden = false;
+        cardsEl.innerHTML = "";
+        return;
+      }
+      emptyEl.hidden = true;
+      const html = [];
+      snap.forEach((d) => {
+        latestRates[d.id] = d.data();
+        html.push(renderCard(d.id, d.data()));
+      });
+      cardsEl.innerHTML = html.join("");
+      // Keep the other two tabs in sync with whatever just changed.
+      renderLeaderboard();
+      renderCalculatorComparison();
+    }, (err) => {
+      loadingEl.hidden = true;
+      cardsEl.innerHTML = `<div class="error-msg">Could not read data: ${err.message}<br/>Make sure you are signed in with an @${ALLOWED_DOMAIN} account.</div>`;
+    });
+  }
+
+  // -----------------------------------------------------------------------
+  // Analytics tab — best-rate leaderboard
+  // -----------------------------------------------------------------------
+  function renderLeaderboard() {
+    const el = document.getElementById("leaderboard");
+    if (!el) return;
+    const rateCompanies = Object.entries(latestRates).filter(([, d]) => d.type !== "fee_only" && typeof d.usdToUsdtRate === "number");
+    if (!rateCompanies.length) { el.innerHTML = "<p class='hint'>No data yet.</p>"; return; }
+
+    let cheapestBuy = rateCompanies[0];
+    let bestSell = rateCompanies[0];
+    for (const entry of rateCompanies) {
+      if (entry[1].usdToUsdtRate < cheapestBuy[1].usdToUsdtRate) cheapestBuy = entry;
+      if (entry[1].usdtToUsdRate < bestSell[1].usdtToUsdRate) bestSell = entry;
+    }
+
+    el.innerHTML = `
+      <div class="lb-item">
+        <div class="lb-label">Cheapest to buy USDT</div>
+        <div class="lb-value">${cheapestBuy[1].label}</div>
+        <div class="lb-sub">${fmtRate(cheapestBuy[1].usdToUsdtRate)} USD = 1 USDT</div>
+      </div>
+      <div class="lb-item">
+        <div class="lb-label">Best price selling USDT</div>
+        <div class="lb-value">${bestSell[1].label}</div>
+        <div class="lb-sub">${fmtRate(bestSell[1].usdtToUsdRate)} USDT = 1 USD</div>
+      </div>`;
+  }
+
+  // -----------------------------------------------------------------------
+  // Analytics tab — change-activity table (how often / how much each
+  // competitor moves its price over the selected period)
+  // -----------------------------------------------------------------------
+  async function loadActivityTable(days) {
+    analyticsLoadedFor = days;
+    const wrap = document.getElementById("activity-table-wrap");
+    wrap.innerHTML = "Loading…";
+    const cutoff = new Date(Date.now() - days * 86400000);
+
+    const rows = [];
+    for (const [key, data] of Object.entries(latestRates)) {
+      if (data.type === "fee_only") continue;
+      const changesSnap = await getDocs(query(
+          collection(db, "rates", key, "changes"),
+          where("changedAt", ">=", cutoff),
+          orderBy("changedAt"),
+      ));
+      let count = 0, up = 0, down = 0, sumAbs = 0, maxAbs = 0;
+      changesSnap.forEach((d) => {
+        const c = d.data();
+        count++;
+        if (c.direction === "up") up++; else down++;
+        const abs = Math.abs(c.diffPercent || 0);
+        sumAbs += abs;
+        if (abs > maxAbs) maxAbs = abs;
+      });
+      rows.push({
+        key, label: data.label,
+        count, up, down,
+        avgAbs: count ? sumAbs / count : 0,
+        maxAbs,
+      });
+    }
+
+    rows.sort((a, b) => b.count - a.count);
+
+    if (!rows.length) {
+      wrap.innerHTML = "<p class='hint'>No rate history yet — check back after a few days of updates.</p>";
+      return;
+    }
+
+    const mostActiveKey = rows[0].count > 0 ? rows[0].key : null;
+    const mostStableKey = rows[rows.length - 1].key;
+
+    const body = rows.map((r) => `
+      <tr>
+        <td>${r.label}
+          ${r.key === mostActiveKey ? '<span class="badge info" style="margin-left:6px">Most active</span>' : ""}
+          ${r.key === mostStableKey && r.key !== mostActiveKey ? '<span class="badge ok" style="margin-left:6px">Most stable</span>' : ""}
+        </td>
+        <td>${r.count}</td>
+        <td>${r.up}↑ / ${r.down}↓</td>
+        <td>${r.avgAbs ? r.avgAbs.toFixed(2) + "%" : "—"}</td>
+        <td>${r.maxAbs ? r.maxAbs.toFixed(2) + "%" : "—"}</td>
+      </tr>`).join("");
+
+    wrap.innerHTML = `
+      <table class="data-table">
+        <thead><tr>
+          <th>Company</th><th>Changes</th><th>Up / Down</th><th>Avg move</th><th>Biggest move</th>
+        </tr></thead>
+        <tbody>${body}</tbody>
+      </table>`;
+  }
+
+  // -----------------------------------------------------------------------
+  // Analytics tab — weekly auto-report
+  // -----------------------------------------------------------------------
+  async function loadWeeklyReport() {
+    const el = document.getElementById("weekly-report");
+    try {
+      const snap = await getDocs(query(collection(db, "weekly_reports"), orderBy("periodStart", "desc"), limit(1)));
+      if (snap.empty) {
+        el.innerHTML = "<p class='hint'>No weekly report yet — the first one is generated the next Monday morning after data starts collecting.</p>";
+        return;
+      }
+      const r = snap.docs[0].data();
+      const period = `${new Date(r.periodStart).toLocaleDateString("en-US", {month: "short", day: "numeric"})} – ${new Date(r.periodEnd).toLocaleDateString("en-US", {month: "short", day: "numeric"})}`;
+      el.innerHTML = `
+        <p class="summary-line"><strong>${period}</strong> — ${r.summary}</p>`;
+    } catch (e) {
+      el.innerHTML = `<p class="error-msg">Could not load the weekly report: ${e.message}</p>`;
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // PLEX Calculator tab
+  // -----------------------------------------------------------------------
+  const plexBuyInput = document.getElementById("plex-buy");
+  const plexSellInput = document.getElementById("plex-sell");
+  const plexSaveBtn = document.getElementById("plex-save-btn");
+  const plexUpdatedEl = document.getElementById("plex-updated");
+  const plexSaveError = document.getElementById("plex-save-error");
+  let latestPlex = null;
+
+  function subscribeToPlexRates(currentUserEmail) {
+    unsubscribePlex = onSnapshot(doc(db, "plex", "current"), (snap) => {
+      latestPlex = snap.exists() ? snap.data() : null;
+      if (latestPlex) {
+        if (document.activeElement !== plexBuyInput) plexBuyInput.value = latestPlex.usdToUsdtRate ?? "";
+        if (document.activeElement !== plexSellInput) plexSellInput.value = latestPlex.usdtToUsdRate ?? "";
+        plexUpdatedEl.innerHTML = `Last saved: <strong>${fmtDateTime(latestPlex.updatedAt)}</strong>${latestPlex.updatedBy ? ` by ${latestPlex.updatedBy}` : ""}`;
+      } else {
+        plexUpdatedEl.textContent = "Not set yet.";
+      }
+      renderCalculatorComparison();
+    }, (err) => {
+      plexUpdatedEl.innerHTML = "";
+      plexSaveError.textContent = "Could not load saved rates: " + err.message;
+      plexSaveError.hidden = false;
+    });
+  }
+
+  plexSaveBtn.addEventListener("click", async () => {
+    plexSaveError.hidden = true;
+    const buy = parseFloat(plexBuyInput.value);
+    const sell = parseFloat(plexSellInput.value);
+    if (!buy || !sell || buy <= 0 || sell <= 0) {
+      plexSaveError.textContent = "Enter both rates as positive numbers.";
+      plexSaveError.hidden = false;
+      return;
+    }
+    try {
+      await setDoc(doc(db, "plex", "current"), {
+        usdToUsdtRate: buy,
+        usdtToUsdRate: sell,
+        updatedAt: serverTimestamp(),
+        updatedBy: auth.currentUser ? auth.currentUser.email : null,
+      });
+    } catch (e) {
+      plexSaveError.textContent = "Save failed: " + e.message;
+      plexSaveError.hidden = false;
+    }
+  });
+
+  function diffCell(plexVal, competitorVal) {
+    if (!plexVal || !competitorVal) return "—";
+    const diff = ((plexVal - competitorVal) / competitorVal) * 100;
+    // Lower is better for the client on BOTH metrics, so a negative diff
+    // (PLEX's number is lower) always means PLEX is the more competitive one.
+    const cls = diff < 0 ? "neg" : diff > 0 ? "pos" : "";
+    return `<span class="${cls}">${fmtPercent(diff)}</span>`;
+  }
+
+  function renderCalculatorComparison() {
+    const wrap = document.getElementById("calc-table-wrap");
+    const summaryEl = document.getElementById("calc-summary");
+    if (!wrap) return;
+
+    if (!latestPlex || !latestPlex.usdToUsdtRate || !latestPlex.usdtToUsdRate) {
+      wrap.innerHTML = "";
+      summaryEl.textContent = "Enter your rates above to see a comparison.";
+      return;
+    }
+
+    const rateCompanies = Object.entries(latestRates).filter(([, d]) => d.type !== "fee_only" && typeof d.usdToUsdtRate === "number");
+    if (!rateCompanies.length) {
+      wrap.innerHTML = "<p class='hint'>No competitor data yet.</p>";
+      return;
+    }
+
+    let cheaperBuyCount = 0, cheaperSellCount = 0;
+    const rows = rateCompanies.map(([key, d]) => {
+      if (latestPlex.usdToUsdtRate < d.usdToUsdtRate) cheaperBuyCount++;
+      if (latestPlex.usdtToUsdRate < d.usdtToUsdRate) cheaperSellCount++;
+      return `
+        <tr>
+          <td>${d.label}</td>
+          <td>${fmtRate(d.usdToUsdtRate)}</td>
+          <td>${fmtRate(latestPlex.usdToUsdtRate)}</td>
+          <td>${diffCell(latestPlex.usdToUsdtRate, d.usdToUsdtRate)}</td>
+          <td>${fmtRate(d.usdtToUsdRate)}</td>
+          <td>${fmtRate(latestPlex.usdtToUsdRate)}</td>
+          <td>${diffCell(latestPlex.usdtToUsdRate, d.usdtToUsdRate)}</td>
+        </tr>`;
+    }).join("");
+
+    summaryEl.innerHTML =
+      `You are more competitive (lower rate) than <strong>${cheaperBuyCount}/${rateCompanies.length}</strong> competitors on Buy, ` +
+      `and <strong>${cheaperSellCount}/${rateCompanies.length}</strong> on Sell.`;
+
+    wrap.innerHTML = `
+      <table class="data-table">
+        <thead><tr>
+          <th>Company</th><th>Their Buy</th><th>Your Buy</th><th>Diff</th>
+          <th>Their Sell</th><th>Your Sell</th><th>Diff</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+</script>
+</body>
+</html>

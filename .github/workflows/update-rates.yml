@@ -1,0 +1,31 @@
+name: Update competitor rates
+
+# Runs 3x/day (09:00, 15:00, 21:00 Asia/Tbilisi = 05:00, 11:00, 17:00 UTC).
+# Can also be run manually from the "Actions" tab in GitHub (workflow_dispatch)
+# — do this once right after setup to populate Firestore immediately.
+on:
+  schedule:
+    - cron: "0 5,11,17 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: scripts
+        run: npm install --omit=dev
+
+      - name: Update rates
+        working-directory: scripts
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node update-rates.js
