@@ -101,6 +101,8 @@
     margin-top: 16px;
   }
   .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; }
+  .card.card-self { border: 2px solid var(--good); background: linear-gradient(180deg, rgba(62,207,142,0.12), rgba(62,207,142,0.03)); box-shadow: 0 0 0 1px rgba(62,207,142,0.25); }
+  .card.card-self .card-head a { color: var(--good); }
   .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
   .card-head a { color: var(--text); text-decoration: none; font-weight: 700; font-size: 15px; }
   .badge { font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: 600; white-space: nowrap; }
@@ -475,7 +477,7 @@
       : "";
 
     return `
-      <div class="card">
+      <div class="card${data.isSelf ? " card-self" : ""}">
         <div class="card-head">
           <a href="${data.website || "#"}" target="_blank" rel="noopener">${data.label || id}</a>
           ${badge}
@@ -522,7 +524,7 @@
   function renderLeaderboard() {
     const el = document.getElementById("leaderboard");
     if (!el) return;
-    const rateCompanies = Object.entries(latestRates).filter(([, d]) => d.type !== "fee_only" && typeof d.usdToUsdtRate === "number");
+    const rateCompanies = Object.entries(latestRates).filter(([, d]) => d.type !== "fee_only" && !d.isSelf && typeof d.usdToUsdtRate === "number");
     if (!rateCompanies.length) { el.innerHTML = "<p class='hint'>No data yet.</p>"; return; }
 
     let cheapestBuy = rateCompanies[0];
@@ -701,7 +703,7 @@
       return;
     }
 
-    const rateCompanies = Object.entries(latestRates).filter(([, d]) => d.type !== "fee_only" && typeof d.usdToUsdtRate === "number");
+    const rateCompanies = Object.entries(latestRates).filter(([, d]) => d.type !== "fee_only" && !d.isSelf && typeof d.usdToUsdtRate === "number");
     if (!rateCompanies.length) {
       wrap.innerHTML = "<p class='hint'>No competitor data yet.</p>";
       return;

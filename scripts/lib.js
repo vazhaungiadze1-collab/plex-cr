@@ -196,6 +196,23 @@ const COMPANIES = {
       return {feeTiers: json};
     },
   },
+  // PLEX's own live rate (not a competitor) — runs on the same white-label
+  // "exchanger" platform as Werty/GeCrypto/Alltrust/Bitcasa, so it's fetched
+  // the same way. `isSelf: true` lets the dashboard highlight this card and
+  // exclude it from "cheapest competitor" / calculator-vs-competitors math.
+  plex: {
+    label: "PLEX",
+    website: "https://www.platformaex.com",
+    isSelf: true,
+    async fetchRates() {
+      const base = "https://www.platformaex.com";
+      const usdtToUsdRate = await fetchExchangerPlatformRate(
+          base, "69de86a1d7e71417c034d447"); // USDT TRC20 -> Cash USD (Tbilisi, Chavchavadze 37G)
+      const usdToUsdtRate = await fetchExchangerPlatformRate(
+          base, "69de8426c8f05e2a624aa064"); // Cash USD (Tbilisi, Chavchavadze 37G) -> USDT TRC20
+      return {usdToUsdtRate, usdtToUsdRate};
+    },
+  },
 };
 
 const RATE_FIELDS = ["usdToUsdtRate", "usdtToUsdRate"];
@@ -261,6 +278,7 @@ async function updateCompany(key, cfg) {
       label: cfg.label,
       website: cfg.website,
       type: cfg.type || "rate",
+      isSelf: !!cfg.isSelf,
       ...data,
       updatedAt: FieldValue.serverTimestamp(),
       lastSuccessAt: FieldValue.serverTimestamp(),
@@ -289,6 +307,7 @@ async function updateCompany(key, cfg) {
       label: cfg.label,
       website: cfg.website,
       type: cfg.type || "rate",
+      isSelf: !!cfg.isSelf,
       lastAttemptAt: FieldValue.serverTimestamp(),
       lastError: err.message,
       consecutiveFailures,
