@@ -117,7 +117,7 @@
   .updated strong { color: var(--text); font-weight: 600; }
   .fee-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px; }
   .fee-table td { padding: 3px 0; color: var(--muted); }
-  .fee-table td:last-child { text-align: right; color: var(--text); font-weight: 600; }
+  .fee-table td:last-child { text-align: right; }
   .error-msg { color: var(--bad); font-size: 12px; margin-top: 8px; }
   #loading, #empty { text-align: center; color: var(--muted); padding: 40px 0; }
   footer { text-align: center; color: var(--muted); font-size: 11px; padding: 20px; }
@@ -436,10 +436,12 @@
     if (!feeTiers) return "<p class='row'><span class='label'>No fee data found</span></p>";
     const rows = [];
     (feeTiers.buy || []).forEach((t) => {
-      rows.push(`<tr><td>Buy · ${t.range?.en || t.range?.ka || ""}</td><td>${t.value?.en || t.value?.ka || ""}</td></tr>`);
+      const val = t.value?.en || t.value?.ka || "";
+      rows.push(`<tr><td>Buy · ${t.range?.en || t.range?.ka || ""}</td><td><span class="fee-badge">${val}</span></td></tr>`);
     });
     (feeTiers.sell || []).forEach((t) => {
-      rows.push(`<tr><td>Sell · ${t.range?.en || t.range?.ka || ""}</td><td>${t.value?.en || t.value?.ka || ""}</td></tr>`);
+      const val = t.value?.en || t.value?.ka || "";
+      rows.push(`<tr><td>Sell · ${t.range?.en || t.range?.ka || ""}</td><td><span class="fee-badge">${val}</span></td></tr>`);
     });
     return `<table class="fee-table">${rows.join("")}</table>` +
       (feeTiers.note ? `<div class="updated">${feeTiers.note.en || feeTiers.note.ka || ""}</div>` : "");
