@@ -112,6 +112,7 @@
   .row:first-of-type { border-top: none; }
   .row .label { color: var(--muted); }
   .row .value { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .fee-badge { display: inline-block; margin-left: 8px; padding: 2px 9px; border-radius: 20px; font-size: 12px; font-weight: 700; background: rgba(79,140,255,0.16); color: var(--accent); vertical-align: middle; }
   .updated { margin-top: 10px; font-size: 11px; color: var(--muted); }
   .updated strong { color: var(--text); font-weight: 600; }
   .fee-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px; }
@@ -409,6 +410,15 @@
     return `${sign}${n.toFixed(digits)}%`;
   }
 
+  // Equivalent fee percentage for companies that only publish a raw rate
+  // (1.000 = no markup). Lets every card be compared side by side with
+  // Stellex, which already discloses its fee as a plain percentage.
+  function fmtFeePercent(rate) {
+    if (rate === undefined || rate === null || Number.isNaN(rate)) return "";
+    const pct = (rate - 1) * 100;
+    return `<span class="fee-badge">${pct.toFixed(2)}% fee</span>`;
+  }
+
   function hoursSince(ts) {
     if (!ts) return Infinity;
     const d = ts.toDate ? ts.toDate() : new Date(ts);
@@ -450,11 +460,11 @@
       body = `
         <div class="row">
           <span class="label">Buy (USD → USDT)</span>
-          <span class="value">${fmtRate(data.usdToUsdtRate)}</span>
+          <span class="value">${fmtRate(data.usdToUsdtRate)} ${fmtFeePercent(data.usdToUsdtRate)}</span>
         </div>
         <div class="row">
           <span class="label">Sell (USDT → USD)</span>
-          <span class="value">${fmtRate(data.usdtToUsdRate)}</span>
+          <span class="value">${fmtRate(data.usdtToUsdRate)} ${fmtFeePercent(data.usdtToUsdRate)}</span>
         </div>`;
     }
 
