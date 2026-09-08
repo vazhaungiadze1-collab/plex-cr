@@ -164,6 +164,14 @@
     0%, 100% { box-shadow: 0 0 6px 1px rgba(62,207,142,0.55); opacity: 1; }
     50% { box-shadow: 0 0 18px 6px rgba(62,207,142,0.95); opacity: 0.8; }
   }
+  .fee-bar-col.self:not(.winner) .fee-bar-value { color: var(--good); opacity: 0.85; }
+  .fee-bar-col.self:not(.winner) .fee-bar { animation: fee-pulse-dim 1.6s ease-in-out infinite; }
+  .fee-bar-col.self:not(.winner) .fee-logo { opacity: 0.8; }
+  .fee-bar-col.self:not(.winner) .fee-name { color: var(--good); opacity: 0.85; }
+  @keyframes fee-pulse-dim {
+    0%, 100% { box-shadow: 0 0 3px 1px rgba(62,207,142,0.3); opacity: 0.4; }
+    50% { box-shadow: 0 0 9px 3px rgba(62,207,142,0.5); opacity: 0.65; }
+  }
   .fee-logo { width: 26px; height: 26px; border-radius: 50%; margin-top: 8px; object-fit: contain; background: #1c2028; padding: 4px; opacity: 0.4; box-sizing: border-box; }
   .fee-bar-col.winner .fee-logo { opacity: 1; box-shadow: 0 0 0 2px var(--good); }
   .fee-name { font-size: 10px; color: var(--muted); margin-top: 5px; text-align: center; opacity: 0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
@@ -676,12 +684,14 @@
         const min = entries[0].pct;
         el.innerHTML = entries.map((e) => {
           const isWinner = e.pct === min;
+          const isSelf = !!e.d.isSelf;
           const heightPct = Math.max(8, (e.pct / max) * 100);
           const logo = LOGO_DATA_URIS[e.key]
             ? `<img class="fee-logo" src="${LOGO_DATA_URIS[e.key]}" alt="" />`
             : `<div class="fee-logo" style="display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--text);">${(e.d.label || e.key).slice(0, 2).toUpperCase()}</div>`;
+          const colClass = isWinner ? " winner" : (isSelf ? " self" : "");
           return `
-            <div class="fee-bar-col${isWinner ? " winner" : ""}">
+            <div class="fee-bar-col${colClass}">
               <div class="fee-bar-value">${e.pct.toFixed(2)}%</div>
               <div class="fee-bar-wrap"><div class="fee-bar" style="height:${heightPct}%"></div></div>
               ${logo}
