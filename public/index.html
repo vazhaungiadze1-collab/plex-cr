@@ -370,6 +370,13 @@
 
     <!-- Analytics tab -->
     <section id="tab-analytics" hidden>
+      <div class="panel panel-tight">
+        <h2 data-tooltip="Shows who currently has the single cheapest Buy rate and the single best Sell rate right now, plus how many of the last 30 tracked days PLEX ranked in the top 3.">Best Rate Today</h2>
+        <p class="hint">Lower is better for the client on both sides — this is who currently offers it.</p>
+        <div class="leaderboard" id="leaderboard"></div>
+        <div class="leaderboard" id="plex-score-row" style="margin-top: 10px;"></div>
+      </div>
+
       <div class="panel">
         <h2 data-tooltip="Ranks every company, PLEX included, by average Buy and Sell rate over the period — separate weekly and monthly rankings, best (lowest) rate first.">Top 3 — best rates</h2>
         <p class="hint">Averaged over the period, PLEX included — lower is better for the client on both sides.</p>
@@ -401,13 +408,6 @@
             </div>
           </div>
         </div>
-      </div>
-
-      <div class="panel panel-tight">
-        <h2 data-tooltip="Shows who currently has the single cheapest Buy rate and the single best Sell rate right now, plus how many of the last 30 tracked days PLEX ranked in the top 3.">Best Rate Today</h2>
-        <p class="hint">Lower is better for the client on both sides — this is who currently offers it.</p>
-        <div class="leaderboard" id="leaderboard"></div>
-        <div class="leaderboard" id="plex-score-row" style="margin-top: 10px;"></div>
       </div>
 
       <div class="panel">
