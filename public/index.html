@@ -313,6 +313,7 @@
   }
   [data-tooltip]:hover::after, [data-tooltip]:hover::before { opacity: 1; visibility: visible; }
   [data-tooltip] a, [data-tooltip] button, [data-tooltip] .icon-link, [data-tooltip] select { cursor: pointer; }
+  h2[data-tooltip], h3[data-tooltip] { display: inline-block; }
 </style>
 </head>
 <body>
@@ -370,7 +371,7 @@
     <!-- Analytics tab -->
     <section id="tab-analytics" hidden>
       <div class="panel">
-        <h2>Top 3 — best rates</h2>
+        <h2 data-tooltip="Ranks every company, PLEX included, by average Buy and Sell rate over the period — separate weekly and monthly rankings, best (lowest) rate first.">Top 3 — best rates</h2>
         <p class="hint">Averaged over the period, PLEX included — lower is better for the client on both sides.</p>
         <div class="top3-grid">
           <div class="top3-period">
@@ -403,14 +404,14 @@
       </div>
 
       <div class="panel panel-tight">
-        <h2>Best Rate Today</h2>
+        <h2 data-tooltip="Shows who currently has the single cheapest Buy rate and the single best Sell rate right now, plus how many of the last 30 tracked days PLEX ranked in the top 3.">Best Rate Today</h2>
         <p class="hint">Lower is better for the client on both sides — this is who currently offers it.</p>
         <div class="leaderboard" id="leaderboard"></div>
         <div class="leaderboard" id="plex-score-row" style="margin-top: 10px;"></div>
       </div>
 
       <div class="panel">
-        <h2>Rate-change activity</h2>
+        <h2 data-tooltip="For the selected period, shows how many times each company changed its rate, the up/down split, average and biggest single move, and the round-trip spread (Buy fee % + Sell fee % combined).">Rate-change activity</h2>
         <p class="hint">How often each competitor changes its price, and by how much — a proxy for how closely they track the market.</p>
         <div class="period-toggle">
           <button class="ghost" data-period="7">Last 7 days</button>
@@ -420,7 +421,7 @@
       </div>
 
       <div class="panel">
-        <h2>Monthly report</h2>
+        <h2 data-tooltip="A 30-day snapshot of rate-change activity and current rates for every company — the same data as the tables above, packaged as a downloadable Excel file.">Monthly report</h2>
         <p class="hint">A 30-day snapshot of rate-change activity and current rates for every tracked company — downloadable as an Excel file.</p>
         <div id="monthly-report">Loading…</div>
         <button id="download-monthly-btn" class="secondary" style="margin-top: 12px;">Download as Excel</button>
@@ -436,7 +437,7 @@
     <!-- PLEX Calculator tab -->
     <section id="tab-calculator" hidden>
       <div class="panel">
-        <h2>Your current rates</h2>
+        <h2 data-tooltip="PLEX's own Buy/Sell rate, entered here and shared with the whole team — this is the number every comparison on this page and the Rates tab uses for PLEX.">Your current rates</h2>
         <p class="hint">Enter PLEX's own USD ⇄ USDT rates. Saved for the whole team, and compared automatically against every competitor below.</p>
         <div class="calc-form">
           <div class="calc-field">
@@ -454,12 +455,12 @@
       </div>
 
       <div class="panel">
-        <h2>How you compare</h2>
+        <h2 data-tooltip="PLEX's rate side-by-side with every competitor's, with the % difference — a negative (green) diff means PLEX is cheaper for the client.">How you compare</h2>
         <p id="calc-summary" class="summary-line">Enter your rates above to see a comparison.</p>
         <div id="calc-table-wrap"></div>
 
         <div class="calc-subsection">
-          <h3>Compare by amount</h3>
+          <h3 data-tooltip="Enter a USD or USDT amount to see exactly how much you would receive from PLEX vs. each competitor for that amount, ranked best first.">Compare by amount</h3>
           <p class="hint">See exactly how much you would get from PLEX and every competitor for a specific amount.</p>
           <div class="calc-amount-row">
             <div class="calc-field">
@@ -478,7 +479,7 @@
         </div>
 
         <div class="calc-subsection">
-          <h3>What rate do I need to beat a competitor?</h3>
+          <h3 data-tooltip="Pick a competitor to see the exact Buy and Sell rate PLEX would need to offer to undercut them, plus whether PLEX is already beating them.">What rate do I need to beat a competitor?</h3>
           <p class="hint">Pick a competitor to see the exact rate PLEX needs to offer to be the more competitive choice.</p>
           <div class="calc-beat-row">
             <div class="calc-field">
