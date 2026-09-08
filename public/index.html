@@ -140,6 +140,7 @@
   .badge.err { background: rgba(255,107,107,0.15); color: var(--bad); }
   .badge.stale { background: rgba(245,184,79,0.15); color: var(--warn); }
   .badge.info { background: rgba(79,140,255,0.15); color: var(--accent); }
+  .badge.live { background: rgba(255,107,107,0.15); color: var(--bad); }
   .row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; border-top: 1px solid var(--border); }
   .row:first-of-type { border-top: none; }
   .row .label { color: var(--muted); }
@@ -251,8 +252,8 @@
   .card-sparkline svg { width: 100%; height: 26px; display: block; }
   .card-sparkline-caption { font-size: 10px; color: var(--muted); margin-top: 4px; display: flex; align-items: center; gap: 4px; }
   .card-sparkline-caption .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
-  .card-sparkline-caption .dot-buy { background: var(--accent); }
-  .card-sparkline-caption .dot-sell { background: var(--good); margin-left: 6px; }
+  .card-sparkline-caption .dot-buy { background: var(--good); }
+  .card-sparkline-caption .dot-sell { background: var(--bad); margin-left: 6px; }
   .calc-form { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; margin-bottom: 18px; }
   .calc-field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
   .summary-line { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
@@ -653,7 +654,7 @@
       ? `<span class="badge err">Error</span>`
       : isStale
         ? `<span class="badge stale">Stale</span>`
-        : `<span class="badge ok">Live</span>`;
+        : `<span class="badge live">Live</span>`;
     const errorLine = data.lastError
       ? `<div class="error-msg">Last error${data.consecutiveFailures > 1 ? ` (${data.consecutiveFailures}x in a row)` : ""}: ${data.lastError}</div>`
       : "";
@@ -771,9 +772,9 @@
     const sellPath = pathFor("sell");
     return `
       <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
-        <title>30-day trend — blue: buy, green: sell</title>
-        ${buyPath ? `<polyline points="${buyPath}" style="fill:none;stroke:var(--accent);stroke-width:1.5"/>` : ""}
-        ${sellPath ? `<polyline points="${sellPath}" style="fill:none;stroke:var(--good);stroke-width:1.5"/>` : ""}
+        <title>30-day trend — green: buy, red: sell</title>
+        ${buyPath ? `<polyline points="${buyPath}" style="fill:none;stroke:var(--good);stroke-width:1.5"/>` : ""}
+        ${sellPath ? `<polyline points="${sellPath}" style="fill:none;stroke:var(--bad);stroke-width:1.5"/>` : ""}
       </svg>`;
   }
 
@@ -812,7 +813,7 @@
       ? `<span class="badge err">Error</span>`
       : isStale
         ? `<span class="badge stale">Stale</span>`
-        : `<span class="badge ok">Live</span>`;
+        : `<span class="badge live">Live</span>`;
 
     let body;
     if (data.type === "fee_only") {
