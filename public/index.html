@@ -200,6 +200,17 @@
   }
   .panel h2 { font-size: 15px; margin: 0 0 4px; }
   .panel .hint { color: var(--muted); font-size: 12px; margin: 0 0 14px; }
+  .top3-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+  .top3-period h3 { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 0 0 10px; font-weight: 700; }
+  .top3-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .top3-col-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .top3-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .top3-list li { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,0.03); }
+  .top3-rank { width: 18px; height: 18px; border-radius: 50%; background: var(--border); color: var(--muted); font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .top3-list li:first-child .top3-rank { background: var(--good); color: #06120c; }
+  .top3-list li.self { color: var(--good); font-weight: 600; }
+  .top3-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .top3-value { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; }
   .period-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
   table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
   table.data-table th {
@@ -292,6 +303,39 @@
     <!-- Analytics tab -->
     <section id="tab-analytics" hidden>
       <div class="panel">
+        <h2>Top 3 — best rates</h2>
+        <p class="hint">Averaged over the period, PLEX included — lower is better for the client on both sides.</p>
+        <div class="top3-grid">
+          <div class="top3-period">
+            <h3>This week</h3>
+            <div class="top3-cols">
+              <div>
+                <div class="top3-col-label">Best to buy</div>
+                <ol class="top3-list" id="top3-week-buy"></ol>
+              </div>
+              <div>
+                <div class="top3-col-label">Best to sell</div>
+                <ol class="top3-list" id="top3-week-sell"></ol>
+              </div>
+            </div>
+          </div>
+          <div class="top3-period">
+            <h3>This month</h3>
+            <div class="top3-cols">
+              <div>
+                <div class="top3-col-label">Best to buy</div>
+                <ol class="top3-list" id="top3-month-buy"></ol>
+              </div>
+              <div>
+                <div class="top3-col-label">Best to sell</div>
+                <ol class="top3-list" id="top3-month-sell"></ol>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
         <h2>Best rate right now</h2>
         <p class="hint">Lower is better for the client on both sides — this is who currently offers it.</p>
         <div class="leaderboard" id="leaderboard"></div>
@@ -305,6 +349,13 @@
           <button class="ghost active" data-period="30">Last 30 days</button>
         </div>
         <div id="activity-table-wrap">Loading…</div>
+      </div>
+
+      <div class="panel">
+        <h2>Monthly report</h2>
+        <p class="hint">A 30-day snapshot of rate-change activity and current rates for every tracked company — downloadable as an Excel file.</p>
+        <div id="monthly-report">Loading…</div>
+        <button id="download-monthly-btn" class="secondary" style="margin-top: 12px;">Download as Excel</button>
       </div>
 
       <div class="panel">
@@ -345,6 +396,8 @@
   <footer>Rates are pulled from each company's own public website and may occasionally lag or fail to update.</footer>
 </div>
 
+<!-- SheetJS, for the monthly report's "Download as Excel" button -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Firebase (modular SDK via Google's own CDN) -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
@@ -457,6 +510,8 @@
       if (tab === "analytics" && analyticsLoadedFor === null) {
         loadActivityTable(30);
         loadWeeklyReport();
+        loadMonthlyReport();
+        loadTop3Panels();
       }
       if (tab === "analytics" || tab === "calculator") {
         renderLeaderboard();
@@ -814,12 +869,8 @@
   // Analytics tab — change-activity table (how often / how much each
   // competitor moves its price over the selected period)
   // -----------------------------------------------------------------------
-  async function loadActivityTable(days) {
-    analyticsLoadedFor = days;
-    const wrap = document.getElementById("activity-table-wrap");
-    wrap.innerHTML = "Loading…";
+  async function computeChangeStats(days) {
     const cutoff = new Date(Date.now() - days * 86400000);
-
     const rows = [];
     for (const [key, data] of Object.entries(latestRates)) {
       if (data.type === "fee_only") continue;
@@ -844,8 +895,117 @@
         maxAbs,
       });
     }
-
     rows.sort((a, b) => b.count - a.count);
+    return rows;
+  }
+
+  // Best-to-buy / best-to-sell over a period, averaged from each company's
+  // daily history snapshots. Unlike the "Best rate right now" leaderboard,
+  // this one includes PLEX itself.
+  async function computeTop3(days) {
+    const cutoff = new Date(Date.now() - days * 86400000);
+    const buyAvgs = [];
+    const sellAvgs = [];
+    for (const [key, data] of Object.entries(latestRates)) {
+      if (data.type === "fee_only") continue;
+      const histSnap = await getDocs(query(
+          collection(db, "rates", key, "history"),
+          where("capturedAt", ">=", cutoff),
+          orderBy("capturedAt"),
+      ));
+      let buySum = 0, buyCount = 0, sellSum = 0, sellCount = 0;
+      histSnap.forEach((d) => {
+        const h = d.data();
+        if (typeof h.usdToUsdtRate === "number") { buySum += h.usdToUsdtRate; buyCount++; }
+        if (typeof h.usdtToUsdRate === "number") { sellSum += h.usdtToUsdRate; sellCount++; }
+      });
+      const buyAvg = buyCount ? buySum / buyCount : data.usdToUsdtRate;
+      const sellAvg = sellCount ? sellSum / sellCount : data.usdtToUsdRate;
+      const entry = { key, label: data.label, isSelf: !!data.isSelf };
+      if (typeof buyAvg === "number" && !Number.isNaN(buyAvg)) buyAvgs.push({ ...entry, value: buyAvg });
+      if (typeof sellAvg === "number" && !Number.isNaN(sellAvg)) sellAvgs.push({ ...entry, value: sellAvg });
+    }
+    buyAvgs.sort((a, b) => a.value - b.value);
+    sellAvgs.sort((a, b) => a.value - b.value);
+    return { buy: buyAvgs.slice(0, 3), sell: sellAvgs.slice(0, 3) };
+  }
+
+  function renderTop3List(elId, entries) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    if (!entries.length) {
+      el.innerHTML = "<li style='background:none;padding:0;color:var(--muted);'>No data yet.</li>";
+      return;
+    }
+    el.innerHTML = entries.map((e, i) => `
+      <li class="${e.isSelf ? "self" : ""}">
+        <span class="top3-rank">${i + 1}</span>
+        <span class="top3-name">${e.label}</span>
+        <span class="top3-value">${fmtRate(e.value)}</span>
+      </li>`).join("");
+  }
+
+  async function loadTop3Panels() {
+    const [week, month] = await Promise.all([computeTop3(7), computeTop3(30)]);
+    renderTop3List("top3-week-buy", week.buy);
+    renderTop3List("top3-week-sell", week.sell);
+    renderTop3List("top3-month-buy", month.buy);
+    renderTop3List("top3-month-sell", month.sell);
+  }
+
+  // Keeps the rows behind the last-rendered monthly report so the Excel
+  // export doesn't have to re-query Firestore.
+  let lastMonthlyRows = [];
+
+  async function loadMonthlyReport() {
+    const el = document.getElementById("monthly-report");
+    try {
+      const days = 30;
+      const rows = await computeChangeStats(days);
+      lastMonthlyRows = rows;
+      const totalChanges = rows.reduce((sum, r) => sum + r.count, 0);
+      const start = new Date(Date.now() - days * 86400000);
+      const period = `${start.toLocaleDateString("en-US", {month: "short", day: "numeric"})} – ${new Date().toLocaleDateString("en-US", {month: "short", day: "numeric"})}`;
+      el.innerHTML = `<p class="summary-line"><strong>${period}</strong> — Over the last 30 days, the tracked companies changed their USD/USDT rates ${totalChanges} time(s) in total.</p>`;
+    } catch (e) {
+      el.innerHTML = `<p class="error-msg">Could not load the monthly report: ${e.message}</p>`;
+    }
+  }
+
+  function downloadMonthlyExcel() {
+    if (typeof XLSX === "undefined") {
+      alert("Excel export isn't available right now — please try again in a moment.");
+      return;
+    }
+    const activitySheet = [
+      ["Company", "Changes (30d)", "Up", "Down", "Avg move %", "Biggest move %"],
+      ...lastMonthlyRows.map((r) => [r.label, r.count, r.up, r.down, Number(r.avgAbs.toFixed(2)), Number(r.maxAbs.toFixed(2))]),
+    ];
+    const ratesSheet = [
+      ["Company", "Buy (USD → USDT)", "Sell (USDT → USD)", "Buy fee %", "Sell fee %", "Last changed"],
+      ...Object.values(latestRates).map((d) => {
+        if (d.type === "fee_only") {
+          return [d.label, "tiered — see dashboard", "tiered — see dashboard", "", "", fmtDateTime(d.updatedAt)];
+        }
+        const buyFee = typeof d.usdToUsdtRate === "number" ? Number(((d.usdToUsdtRate - 1) * 100).toFixed(2)) : "";
+        const sellFee = typeof d.usdtToUsdRate === "number" ? Number(((d.usdtToUsdRate - 1) * 100).toFixed(2)) : "";
+        return [d.label, d.usdToUsdtRate ?? "", d.usdtToUsdRate ?? "", buyFee, sellFee, fmtDateTime(d.updatedAt)];
+      }),
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(activitySheet), "30-Day Activity");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ratesSheet), "Current Rates");
+    const stamp = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `plex-monthly-report-${stamp}.xlsx`);
+  }
+
+  document.getElementById("download-monthly-btn").addEventListener("click", downloadMonthlyExcel);
+
+  async function loadActivityTable(days) {
+    analyticsLoadedFor = days;
+    const wrap = document.getElementById("activity-table-wrap");
+    wrap.innerHTML = "Loading…";
+    const rows = await computeChangeStats(days);
 
     if (!rows.length) {
       wrap.innerHTML = "<p class='hint'>No rate history yet — check back after a few days of updates.</p>";
