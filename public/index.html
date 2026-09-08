@@ -253,6 +253,20 @@
   .calc-field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
   .summary-line { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
   .summary-line strong { color: var(--text); }
+  .calc-subsection { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); }
+  .calc-subsection h3 { font-size: 14px; margin: 0 0 4px; }
+  .calc-subsection .hint { margin-bottom: 12px; }
+  .calc-amount-row, .calc-beat-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; margin-bottom: 14px; }
+  .calc-amount-row select, .calc-beat-row select { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px; font-size: 13px; }
+  .amount-result-list { display: flex; flex-direction: column; gap: 6px; }
+  .amount-result-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; font-size: 13px; }
+  .amount-result-row.self { border-color: var(--good); }
+  .amount-result-row .ar-name { font-weight: 600; }
+  .amount-result-row .ar-name.self-name { color: var(--good); }
+  .amount-result-row .ar-value { font-weight: 700; white-space: nowrap; }
+  .amount-result-row .ar-diff { font-size: 12px; white-space: nowrap; }
+  .beat-result-box { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; font-size: 13px; line-height: 1.7; }
+  .beat-result-box strong { color: var(--good); }
 </style>
 </head>
 <body>
@@ -397,6 +411,37 @@
         <h2>How you compare</h2>
         <p id="calc-summary" class="summary-line">Enter your rates above to see a comparison.</p>
         <div id="calc-table-wrap"></div>
+
+        <div class="calc-subsection">
+          <h3>Compare by amount</h3>
+          <p class="hint">See exactly how much you would get from PLEX and every competitor for a specific amount.</p>
+          <div class="calc-amount-row">
+            <div class="calc-field">
+              <label>Amount</label>
+              <input type="number" step="0.01" min="0" id="calc-amount" placeholder="e.g. 500" />
+            </div>
+            <div class="calc-field">
+              <label>Direction</label>
+              <select id="calc-amount-dir">
+                <option value="buy">Buy USDT with USD</option>
+                <option value="sell">Sell USDT for USD</option>
+              </select>
+            </div>
+          </div>
+          <div id="calc-amount-result"></div>
+        </div>
+
+        <div class="calc-subsection">
+          <h3>What rate do I need to beat a competitor?</h3>
+          <p class="hint">Pick a competitor to see the exact rate PLEX needs to offer to be the more competitive choice.</p>
+          <div class="calc-beat-row">
+            <div class="calc-field">
+              <label>Competitor</label>
+              <select id="calc-beat-select"></select>
+            </div>
+          </div>
+          <div id="calc-beat-result"></div>
+        </div>
       </div>
     </section>
   </main>
@@ -1264,10 +1309,124 @@
     return `<span class="${cls}">${fmtPercent(diff)}</span>`;
   }
 
+  // --- Amount-based comparison ---------------------------------------
+  let calcAmountListenersBound = false;
+  function bindCalcInputListeners() {
+    if (calcAmountListenersBound) return;
+    calcAmountListenersBound = true;
+    const amtInput = document.getElementById("calc-amount");
+    const dirSelect = document.getElementById("calc-amount-dir");
+    const beatSelect = document.getElementById("calc-beat-select");
+    if (amtInput) amtInput.addEventListener("input", renderAmountComparison);
+    if (dirSelect) dirSelect.addEventListener("change", renderAmountComparison);
+    if (beatSelect) beatSelect.addEventListener("change", renderBeatCalculator);
+  }
+
+  function renderAmountComparison() {
+    const resultEl = document.getElementById("calc-amount-result");
+    if (!resultEl) return;
+    const amtInput = document.getElementById("calc-amount");
+    const dirSelect = document.getElementById("calc-amount-dir");
+    const amount = parseFloat(amtInput && amtInput.value);
+    const dir = dirSelect ? dirSelect.value : "buy";
+
+    if (!latestPlex || !latestPlex.usdToUsdtRate || !latestPlex.usdtToUsdRate) {
+      resultEl.innerHTML = "<p class='hint'>Enter your rates above to see amount-based results.</p>";
+      return;
+    }
+    if (!amount || amount <= 0) {
+      resultEl.innerHTML = "<p class='hint'>Enter an amount above to see what you would get from each company.</p>";
+      return;
+    }
+
+    const entries = [["__plex__", { label: "PLEX (you)", usdToUsdtRate: latestPlex.usdToUsdtRate, usdtToUsdRate: latestPlex.usdtToUsdRate, isSelf: true }]]
+      .concat(Object.entries(latestRates).filter(([, d]) => d.type !== "fee_only" && !d.isSelf && typeof d.usdToUsdtRate === "number" && typeof d.usdtToUsdRate === "number"));
+
+    const unit = dir === "buy" ? "USDT" : "USD";
+    const rows = entries.map(([key, d]) => {
+      const rate = dir === "buy" ? d.usdToUsdtRate : d.usdtToUsdRate;
+      const received = amount / rate;
+      return { key, label: d.label, isSelf: !!d.isSelf, received };
+    }).sort((a, b) => b.received - a.received);
+
+    const plexRow = rows.find((r) => r.isSelf);
+
+    const html = rows.map((r) => {
+      let diffHtml = "";
+      if (plexRow && !r.isSelf && r.received) {
+        const diff = ((plexRow.received - r.received) / r.received) * 100;
+        const cls = diff > 0 ? "neg" : diff < 0 ? "pos" : "";
+        const text = diff > 0 ? `PLEX gives ${Math.abs(diff).toFixed(2)}% more`
+          : diff < 0 ? `PLEX gives ${Math.abs(diff).toFixed(2)}% less`
+          : "Same as PLEX";
+        diffHtml = `<span class="ar-diff ${cls}">${text}</span>`;
+      }
+      return `
+        <div class="amount-result-row${r.isSelf ? " self" : ""}">
+          <span class="ar-name${r.isSelf ? " self-name" : ""}">${r.label}</span>
+          <span class="ar-value">${r.received.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${unit}</span>
+          ${diffHtml}
+        </div>`;
+    }).join("");
+
+    resultEl.innerHTML = `<div class="amount-result-list">${html}</div>`;
+  }
+
+  // --- "What rate do I need to beat X" reverse calculator --------------
+  let beatSelectPopulatedKeys = null;
+  function populateBeatSelect() {
+    const beatSelect = document.getElementById("calc-beat-select");
+    if (!beatSelect) return;
+    const rateCompanies = Object.entries(latestRates).filter(([, d]) => d.type !== "fee_only" && !d.isSelf && typeof d.usdToUsdtRate === "number" && typeof d.usdtToUsdRate === "number");
+    const keys = rateCompanies.map(([key]) => key).sort().join(",");
+    if (keys === beatSelectPopulatedKeys) return;
+    beatSelectPopulatedKeys = keys;
+    const prevValue = beatSelect.value;
+    beatSelect.innerHTML = rateCompanies.map(([key, d]) => `<option value="${key}">${d.label}</option>`).join("");
+    if (rateCompanies.some(([key]) => key === prevValue)) beatSelect.value = prevValue;
+  }
+
+  function renderBeatCalculator() {
+    const resultEl = document.getElementById("calc-beat-result");
+    if (!resultEl) return;
+    populateBeatSelect();
+    const beatSelect = document.getElementById("calc-beat-select");
+    const key = beatSelect ? beatSelect.value : null;
+    const d = key ? latestRates[key] : null;
+
+    if (!d) {
+      resultEl.innerHTML = "<p class='hint'>No competitor data yet.</p>";
+      return;
+    }
+
+    const epsilon = 0.0001;
+    const targetBuy = d.usdToUsdtRate - epsilon;
+    const targetSell = d.usdtToUsdRate - epsilon;
+
+    let statusHtml = "";
+    if (latestPlex && latestPlex.usdToUsdtRate && latestPlex.usdtToUsdRate) {
+      const beatingBuy = latestPlex.usdToUsdtRate < d.usdToUsdtRate;
+      const beatingSell = latestPlex.usdtToUsdRate < d.usdtToUsdRate;
+      statusHtml = `<p class="hint" style="margin-top:10px;">You are currently ${beatingBuy ? "<strong>beating</strong>" : "not beating"} ${d.label} on Buy, and ${beatingSell ? "<strong>beating</strong>" : "not beating"} them on Sell.</p>`;
+    }
+
+    resultEl.innerHTML = `
+      <div class="beat-result-box">
+        ${d.label}'s current rates: Buy ${fmtRate(d.usdToUsdtRate)}, Sell ${fmtRate(d.usdtToUsdRate)}.<br/>
+        To be more competitive, PLEX needs to offer <strong>${fmtRate(targetBuy)}</strong> or lower on Buy,
+        and <strong>${fmtRate(targetSell)}</strong> or lower on Sell.
+      </div>
+      ${statusHtml}`;
+  }
+
   function renderCalculatorComparison() {
     const wrap = document.getElementById("calc-table-wrap");
     const summaryEl = document.getElementById("calc-summary");
     if (!wrap) return;
+
+    bindCalcInputListeners();
+    renderAmountComparison();
+    renderBeatCalculator();
 
     if (!latestPlex || !latestPlex.usdToUsdtRate || !latestPlex.usdtToUsdRate) {
       wrap.innerHTML = "";
