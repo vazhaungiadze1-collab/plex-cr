@@ -37,8 +37,23 @@
   header h1 { font-size: 20px; margin: 0; }
   header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
   main { max-width: 1040px; margin: 0 auto; padding: 12px 20px 60px; }
-  #signin-screen { text-align: center; padding: 80px 20px; }
-  #signin-screen p { color: var(--muted); margin-bottom: 20px; }
+  #signin-screen {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+    z-index: 20;
+  }
+  #signin-screen:not([hidden]) { display: flex; }
+  #signin-screen .signin-logo { display: block; margin: 0 0 22px; }
+  #signin-screen h1 { font-size: 26px; margin: 0 0 12px; }
+  #signin-screen p { color: var(--muted); margin: 0 0 26px; font-size: 12px; max-width: 320px; line-height: 1.5; }
+  #signin-btn { background: #bbf923; color: #0b0d10; }
+  #signin-btn:hover { background: #a8e820; }
   button, input {
     font: inherit;
     color: inherit;
@@ -193,7 +208,12 @@
 <body>
 
 <div id="signin-screen">
-  <h1>PLEX — USD/USDT Competitor Rates</h1>
+  <svg class="signin-logo" width="120" height="87" viewBox="0 0 216 157" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <rect x="0" y="7" width="59" height="123" rx="16" fill="#bbf923"/>
+    <rect x="79" y="39" width="59" height="118" rx="16" fill="#bbf923"/>
+    <rect x="157" y="0" width="59" height="118" rx="16" fill="#bbf923"/>
+  </svg>
+  <h1>PLEX Competitor Rates</h1>
   <p>This dashboard is restricted to <strong>@plex-team.com</strong> accounts. Please sign in to continue.</p>
   <button id="signin-btn">Sign in with Google</button>
   <p id="signin-error" class="error-msg" hidden></p>
