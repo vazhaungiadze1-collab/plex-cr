@@ -245,6 +245,10 @@
   .lb-item .lb-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
   .lb-item .lb-value { font-size: 16px; font-weight: 700; margin-top: 3px; }
   .lb-item .lb-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .lb-item-self { border-color: var(--good); }
+  .lb-item-self .lb-value { color: var(--good); }
+  .card-sparkline { height: 26px; margin: 10px 0 2px; }
+  .card-sparkline svg { width: 100%; height: 100%; display: block; }
   .calc-form { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; margin-bottom: 18px; }
   .calc-field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
   .summary-line { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
@@ -342,6 +346,7 @@
         <h2>Best Rate Today</h2>
         <p class="hint">Lower is better for the client on both sides — this is who currently offers it.</p>
         <div class="leaderboard" id="leaderboard"></div>
+        <div class="leaderboard" id="plex-score-row" style="margin-top: 10px;"></div>
       </div>
 
       <div class="panel">
@@ -515,6 +520,7 @@
         loadWeeklyReport();
         loadMonthlyReport();
         loadTop3Panels();
+        loadPlexScore();
       }
       if (tab === "analytics" || tab === "calculator") {
         renderLeaderboard();
@@ -617,6 +623,7 @@
           <div class="plex-stat-value">${fmtRate(data.usdtToUsdRate)} ${fmtFeePercent(data.usdtToUsdRate)}</div>
         </div>
       </div>
+      <div class="card-sparkline" id="spark-${id}"></div>
       ${errorLine}
       <div class="updated">Last changed: <strong>${fmtDateTime(data.updatedAt)}</strong></div>`;
   }
@@ -692,6 +699,61 @@
       </a>`).join("")}</div>`;
   }
 
+  // Small inline 30-day trend line for each card (blue = buy, green =
+  // sell), built from the same daily history docs used elsewhere. Fetched
+  // once per page load — rates only change a few times a day, so there's
+  // no need to re-query on every live snapshot tick.
+  let sparklinesLoaded = false;
+
+  function buildSparklineSvg(points) {
+    if (points.length < 2) return "";
+    const w = 100, h = 26, pad = 2;
+    const all = points.flatMap((p) => [p.buy, p.sell]).filter((v) => typeof v === "number");
+    if (!all.length) return "";
+    const min = Math.min(...all), max = Math.max(...all);
+    const range = (max - min) || 0.0001;
+    const scaleX = (i) => pad + (i / (points.length - 1)) * (w - pad * 2);
+    const scaleY = (v) => h - pad - ((v - min) / range) * (h - pad * 2);
+    const pathFor = (key) => points
+        .map((p, i) => (typeof p[key] === "number" ? `${scaleX(i).toFixed(1)},${scaleY(p[key]).toFixed(1)}` : null))
+        .filter(Boolean)
+        .join(" ");
+    const buyPath = pathFor("buy");
+    const sellPath = pathFor("sell");
+    return `
+      <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+        <title>30-day trend — blue: buy, green: sell</title>
+        ${buyPath ? `<polyline points="${buyPath}" style="fill:none;stroke:var(--accent);stroke-width:1.5"/>` : ""}
+        ${sellPath ? `<polyline points="${sellPath}" style="fill:none;stroke:var(--good);stroke-width:1.5"/>` : ""}
+      </svg>`;
+  }
+
+  async function renderSparklines() {
+    const days = 30;
+    const cutoff = new Date(Date.now() - days * 86400000);
+    for (const [key, data] of Object.entries(latestRates)) {
+      if (data.type === "fee_only") continue;
+      const el = document.getElementById(`spark-${key}`);
+      if (!el) continue;
+      try {
+        const histSnap = await getDocs(query(
+            collection(db, "rates", key, "history"),
+            where("capturedAt", ">=", cutoff),
+            orderBy("capturedAt"),
+        ));
+        const points = [];
+        histSnap.forEach((d) => {
+          const h = d.data();
+          points.push({ buy: h.usdToUsdtRate, sell: h.usdtToUsdRate });
+        });
+        points.push({ buy: data.usdToUsdtRate, sell: data.usdtToUsdRate });
+        el.innerHTML = buildSparklineSvg(points);
+      } catch (e) {
+        el.innerHTML = "";
+      }
+    }
+  }
+
   function renderCard(id, data) {
     const isStale = data.type !== "fee_only" && hoursSince(data.updatedAt) > STALE_AFTER_HOURS;
     const badge = data.lastError
@@ -726,6 +788,7 @@
           ${badge}
         </div>
         ${body}
+        ${data.type !== "fee_only" ? `<div class="card-sparkline" id="spark-${id}"></div>` : ""}
         ${renderLinkRow(id, data)}
         ${errorLine}
         <div class="updated">Last changed: <strong>${fmtDateTime(data.updatedAt)}</strong></div>
@@ -770,6 +833,10 @@
       renderLeaderboard();
       renderCalculatorComparison();
       renderFeeCharts();
+      if (!sparklinesLoaded) {
+        sparklinesLoaded = true;
+        renderSparklines();
+      }
     }, (err) => {
       loadingEl.hidden = true;
       cardsEl.innerHTML = `<div class="error-msg">Could not read data: ${err.message}<br/>Make sure you are signed in with an @${ALLOWED_DOMAIN} account.</div>`;
@@ -868,6 +935,66 @@
       </div>`;
   }
 
+  // How often PLEX itself would have ranked in the top 3 (cheapest) on
+  // each side, on the days it has history recorded — matched to the same
+  // dates for every other company via their history doc IDs (YYYY-MM-DD).
+  async function computePlexScore(days) {
+    const cutoff = new Date(Date.now() - days * 86400000);
+    const byCompanyByDate = {};
+    for (const [key, data] of Object.entries(latestRates)) {
+      if (data.type === "fee_only") continue;
+      const snap = await getDocs(query(
+          collection(db, "rates", key, "history"),
+          where("capturedAt", ">=", cutoff),
+          orderBy("capturedAt"),
+      ));
+      const map = {};
+      snap.forEach((d) => { map[d.id] = d.data(); });
+      byCompanyByDate[key] = map;
+    }
+    const plexDates = Object.keys(byCompanyByDate.plex || {});
+    if (!plexDates.length) return null;
+    let buyTop3 = 0, sellTop3 = 0, buyTotal = 0, sellTotal = 0;
+    for (const dateStr of plexDates) {
+      const buys = [], sells = [];
+      for (const [key, map] of Object.entries(byCompanyByDate)) {
+        const rec = map[dateStr];
+        if (!rec) continue;
+        if (typeof rec.usdToUsdtRate === "number") buys.push({ key, v: rec.usdToUsdtRate });
+        if (typeof rec.usdtToUsdRate === "number") sells.push({ key, v: rec.usdtToUsdRate });
+      }
+      buys.sort((a, b) => a.v - b.v);
+      sells.sort((a, b) => a.v - b.v);
+      const buyRank = buys.findIndex((e) => e.key === "plex");
+      const sellRank = sells.findIndex((e) => e.key === "plex");
+      if (buyRank !== -1) { buyTotal++; if (buyRank < 3) buyTop3++; }
+      if (sellRank !== -1) { sellTotal++; if (sellRank < 3) sellTop3++; }
+    }
+    if (!buyTotal && !sellTotal) return null;
+    return {
+      days: plexDates.length,
+      buyPct: buyTotal ? Math.round((buyTop3 / buyTotal) * 100) : null,
+      sellPct: sellTotal ? Math.round((sellTop3 / sellTotal) * 100) : null,
+    };
+  }
+
+  async function loadPlexScore() {
+    const el = document.getElementById("plex-score-row");
+    if (!el) return;
+    try {
+      const score = await computePlexScore(30);
+      if (!score) { el.innerHTML = ""; return; }
+      el.innerHTML = `
+        <div class="lb-item lb-item-self">
+          <div class="lb-label">PLEX in top 3 (30d)</div>
+          <div class="lb-value">Buy ${score.buyPct ?? "—"}% · Sell ${score.sellPct ?? "—"}%</div>
+          <div class="lb-sub">across ${score.days} tracked day(s)</div>
+        </div>`;
+    } catch (e) {
+      el.innerHTML = "";
+    }
+  }
+
   // -----------------------------------------------------------------------
   // Analytics tab — change-activity table (how often / how much each
   // competitor moves its price over the selected period)
@@ -891,11 +1018,15 @@
         sumAbs += abs;
         if (abs > maxAbs) maxAbs = abs;
       });
+      const buyFee = typeof data.usdToUsdtRate === "number" ? (data.usdToUsdtRate - 1) * 100 : null;
+      const sellFee = typeof data.usdtToUsdRate === "number" ? (data.usdtToUsdRate - 1) * 100 : null;
+      const spread = buyFee !== null && sellFee !== null ? buyFee + sellFee : null;
       rows.push({
         key, label: data.label,
         count, up, down,
         avgAbs: count ? sumAbs / count : 0,
         maxAbs,
+        spread,
       });
     }
     rows.sort((a, b) => b.count - a.count);
@@ -948,8 +1079,13 @@
       </li>`).join("");
   }
 
+  // Kept around so the Excel export can reuse the same Top 3 results
+  // instead of re-querying Firestore.
+  let lastTop3 = { week: null, month: null };
+
   async function loadTop3Panels() {
     const [week, month] = await Promise.all([computeTop3(7), computeTop3(30)]);
+    lastTop3 = { week, month };
     renderTop3List("top3-week-buy", week.buy);
     renderTop3List("top3-week-sell", week.sell);
     renderTop3List("top3-month-buy", month.buy);
@@ -981,9 +1117,15 @@
       return;
     }
     const activitySheet = [
-      ["Company", "Changes (30d)", "Up", "Down", "Avg move %", "Biggest move %"],
-      ...lastMonthlyRows.map((r) => [r.label, r.count, r.up, r.down, Number(r.avgAbs.toFixed(2)), Number(r.maxAbs.toFixed(2))]),
+      ["Company", "Changes (30d)", "Up", "Down", "Avg move %", "Biggest move %", "Round-trip spread %"],
+      ...lastMonthlyRows.map((r) => [r.label, r.count, r.up, r.down, Number(r.avgAbs.toFixed(2)), Number(r.maxAbs.toFixed(2)), r.spread !== null ? Number(r.spread.toFixed(2)) : ""]),
     ];
+    const top3Rows = [["Period", "Metric", "Rank", "Company", "Rate"]];
+    for (const [periodLabel, result] of [["This week", lastTop3.week], ["This month", lastTop3.month]]) {
+      if (!result) continue;
+      result.buy.forEach((e, i) => top3Rows.push([periodLabel, "Best to buy", i + 1, e.label, Number(e.value.toFixed(4))]));
+      result.sell.forEach((e, i) => top3Rows.push([periodLabel, "Best to sell", i + 1, e.label, Number(e.value.toFixed(4))]));
+    }
     const ratesSheet = [
       ["Company", "Buy (USD → USDT)", "Sell (USDT → USD)", "Buy fee %", "Sell fee %", "Last changed"],
       ...Object.values(latestRates).map((d) => {
@@ -998,6 +1140,9 @@
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(activitySheet), "30-Day Activity");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ratesSheet), "Current Rates");
+    if (top3Rows.length > 1) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(top3Rows), "Top 3 (7d & 30d)");
+    }
     const stamp = new Date().toISOString().slice(0, 10);
     XLSX.writeFile(wb, `plex-monthly-report-${stamp}.xlsx`);
   }
@@ -1028,12 +1173,13 @@
         <td>${r.up}↑ / ${r.down}↓</td>
         <td>${r.avgAbs ? r.avgAbs.toFixed(2) + "%" : "—"}</td>
         <td>${r.maxAbs ? r.maxAbs.toFixed(2) + "%" : "—"}</td>
+        <td>${r.spread !== null ? r.spread.toFixed(2) + "%" : "—"}</td>
       </tr>`).join("");
 
     wrap.innerHTML = `
       <table class="data-table">
         <thead><tr>
-          <th>Company</th><th>Changes</th><th>Up / Down</th><th>Avg move</th><th>Biggest move</th>
+          <th>Company</th><th>Changes</th><th>Up / Down</th><th>Avg move</th><th>Biggest move</th><th>Round-trip spread</th>
         </tr></thead>
         <tbody>${body}</tbody>
       </table>`;
