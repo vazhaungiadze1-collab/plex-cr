@@ -272,6 +272,47 @@
   .amount-result-row .ar-diff { font-size: 12px; white-space: nowrap; }
   .beat-result-box { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; font-size: 13px; line-height: 1.7; }
   .beat-result-box strong { color: var(--good); }
+  [data-tooltip] { position: relative; cursor: help; }
+  [data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0d0f12;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 13px;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.45;
+    white-space: normal;
+    width: max-content;
+    max-width: 260px;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.45);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease;
+    z-index: 60;
+    pointer-events: none;
+  }
+  [data-tooltip]::before {
+    content: "";
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: var(--border);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease;
+    z-index: 60;
+    pointer-events: none;
+  }
+  [data-tooltip]:hover::after, [data-tooltip]:hover::before { opacity: 1; visibility: visible; }
+  [data-tooltip] a, [data-tooltip] button, [data-tooltip] .icon-link, [data-tooltip] select { cursor: pointer; }
 </style>
 </head>
 <body>
@@ -314,15 +355,15 @@
       <div id="empty" hidden>No data yet. It will appear after the Cloud Function's first run.</div>
       <div class="fee-charts">
         <div class="fee-chart-card">
-          <div class="fee-chart-title">Buy Fee — USD → USDT</div>
+          <div class="fee-chart-title" data-tooltip="Compares every company's percentage fee for buying USDT with USD. Shorter bar = lower fee = better for the client.">Buy Fee — USD → USDT</div>
           <div class="fee-bars" id="fee-chart-buy"></div>
         </div>
         <div class="fee-chart-card">
-          <div class="fee-chart-title">Sell Fee — USDT → USD</div>
+          <div class="fee-chart-title" data-tooltip="Compares every company's percentage fee for selling USDT for USD. Shorter bar = lower fee = better for the client.">Sell Fee — USDT → USD</div>
           <div class="fee-bars" id="fee-chart-sell"></div>
         </div>
       </div>
-      <div class="plex-hero" id="plex-hero" hidden></div>
+      <div class="plex-hero" id="plex-hero" hidden data-tooltip="PLEX's own official rates, entered by the team in the PLEX Calculator tab. Compared live against every competitor throughout this dashboard."></div>
       <div class="cards" id="cards"></div>
     </section>
 
@@ -834,8 +875,11 @@
       ? `<div class="error-msg">Last error${data.consecutiveFailures > 1 ? ` (${data.consecutiveFailures}x in a row)` : ""}: ${data.lastError}</div>`
       : "";
 
+    const cardTooltip = data.type === "fee_only"
+      ? `${data.label || id} doesn't publish one flat rate — instead a tiered commission schedule based on transaction size, shown below for both buying and selling.`
+      : `${data.label || id}'s live USD ⇄ USDT rates, checked automatically several times a day. Buy = USD needed for 1 USDT, Sell = USDT needed for 1 USD — lower is better for the client on both.`;
     return `
-      <div class="card${data.isSelf ? " card-self" : ""}">
+      <div class="card${data.isSelf ? " card-self" : ""}" data-tooltip="${cardTooltip.replace(/"/g, "&quot;")}">
         <div class="card-head">
           <a href="${data.website || "#"}" target="_blank" rel="noopener">${data.label || id}</a>
           ${badge}
@@ -949,8 +993,11 @@
             ? `<img class="fee-logo" src="${LOGO_DATA_URIS[e.key]}" alt="" />`
             : `<div class="fee-logo" style="display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--text);">${(e.d.label || e.key).slice(0, 2).toUpperCase()}</div>`;
           const colClass = isWinner ? " winner" : (isSelf ? " self" : "");
+          const dirLabel = dir === "buy" ? "buy USDT with USD" : "sell USDT for USD";
+          const barTooltip = `${e.d.label || e.key} — fee to ${dirLabel}: ${e.pct.toFixed(2)}%.`
+            + (isWinner ? " Currently the cheapest option." : " Sorted cheapest to most expensive — shorter bar is cheaper.");
           return `
-            <div class="fee-bar-col${colClass}">
+            <div class="fee-bar-col${colClass}" data-tooltip="${barTooltip.replace(/"/g, "&quot;")}">
               <div class="fee-bar-value">${e.pct.toFixed(2)}%</div>
               <div class="fee-bar-wrap"><div class="fee-bar" style="height:${heightPct}%"></div></div>
               ${logo}
