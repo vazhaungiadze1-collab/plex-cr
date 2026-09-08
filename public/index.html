@@ -84,8 +84,27 @@
     padding: 8px 10px;
     width: 140px;
   }
+  #user-area { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
   #user-bar { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
   #user-bar img { width: 28px; height: 28px; border-radius: 50%; }
+  .tbilisi-clock-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+  .tbilisi-clock-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .seven-seg-clock { display: flex; align-items: center; gap: 4px; }
+  .ssc-digit { position: relative; width: 15px; height: 26px; }
+  .ssc-seg { position: absolute; background: rgba(62,207,142,0.12); transition: background 0.1s ease, box-shadow 0.1s ease; }
+  .ssc-seg.on { background: var(--good); box-shadow: 0 0 5px 1px rgba(62,207,142,0.75); }
+  .ssc-a, .ssc-g, .ssc-d { left: 2.5px; width: 10px; height: 2.5px; clip-path: polygon(15% 0%, 85% 0%, 100% 50%, 85% 100%, 15% 100%, 0% 50%); }
+  .ssc-a { top: 0; }
+  .ssc-g { top: 11.75px; }
+  .ssc-d { top: 23.5px; }
+  .ssc-f, .ssc-b, .ssc-e, .ssc-c { width: 2.5px; height: 10px; clip-path: polygon(0% 15%, 50% 0%, 100% 15%, 100% 85%, 50% 100%, 0% 85%); }
+  .ssc-f { top: 1.75px; left: 0; }
+  .ssc-b { top: 1.75px; right: 0; }
+  .ssc-e { top: 14.25px; left: 0; }
+  .ssc-c { top: 14.25px; right: 0; }
+  .ssc-colon { display: flex; flex-direction: column; justify-content: center; gap: 6px; height: 26px; }
+  .ssc-colon i { display: block; width: 3px; height: 3px; border-radius: 50%; background: rgba(62,207,142,0.15); font-style: normal; }
+  .ssc-colon i.on { background: var(--good); box-shadow: 0 0 4px 1px rgba(62,207,142,0.75); }
 
   /* Tabs */
   .tabs {
@@ -336,10 +355,16 @@
       <h1>PLEX — Competitor Rates</h1>
       <p>USD ⇄ USDT, refreshed multiple times a day</p>
     </div>
-    <div id="user-bar">
-      <img id="user-photo" src="" alt="" hidden />
-      <span id="user-email"></span>
-      <button class="secondary" id="signout-btn">Sign out</button>
+    <div id="user-area">
+      <div id="user-bar">
+        <img id="user-photo" src="" alt="" hidden />
+        <span id="user-email"></span>
+        <button class="secondary" id="signout-btn">Sign out</button>
+      </div>
+      <div class="tbilisi-clock-wrap" data-tooltip="Current time in Tbilisi, Georgia (UTC+4) — updates live every second.">
+        <div class="tbilisi-clock-label">Tbilisi time</div>
+        <div class="seven-seg-clock" id="tbilisi-clock"></div>
+      </div>
     </div>
   </header>
 
@@ -1525,6 +1550,41 @@
         <tbody>${rows}</tbody>
       </table>`;
   }
+
+  // -----------------------------------------------------------------------
+  // Header clock — live Tbilisi time rendered as a 7-segment display
+  // -----------------------------------------------------------------------
+  const SEVEN_SEG_MAP = {
+    "0": "abcdef", "1": "bc", "2": "abged", "3": "abgcd", "4": "fgbc",
+    "5": "afgcd", "6": "afgecd", "7": "abc", "8": "abcdefg", "9": "abcdfg",
+  };
+  const SEVEN_SEG_PARTS = ["a", "b", "c", "d", "e", "f", "g"];
+
+  function buildSevenSegDigit(char) {
+    const segs = SEVEN_SEG_MAP[char] || "";
+    return `<div class="ssc-digit">${SEVEN_SEG_PARTS.map((s) =>
+      `<div class="ssc-seg ssc-${s}${segs.includes(s) ? " on" : ""}"></div>`).join("")}</div>`;
+  }
+
+  function renderTbilisiClock() {
+    const el = document.getElementById("tbilisi-clock");
+    if (!el) return;
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Tbilisi", hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit",
+    }).formatToParts(now);
+    const get = (type) => parts.find((p) => p.type === type)?.value || "00";
+    const hh = get("hour"), mm = get("minute"), ss = get("second");
+    const colonClass = now.getSeconds() % 2 === 0 ? " on" : "";
+    const colon = `<div class="ssc-colon"><i class="${colonClass.trim()}"></i><i class="${colonClass.trim()}"></i></div>`;
+    el.innerHTML =
+      buildSevenSegDigit(hh[0]) + buildSevenSegDigit(hh[1]) + colon +
+      buildSevenSegDigit(mm[0]) + buildSevenSegDigit(mm[1]) + colon +
+      buildSevenSegDigit(ss[0]) + buildSevenSegDigit(ss[1]);
+  }
+
+  renderTbilisiClock();
+  setInterval(renderTbilisiClock, 1000);
 </script>
 </body>
 </html>
