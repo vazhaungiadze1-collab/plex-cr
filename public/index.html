@@ -247,8 +247,12 @@
   .lb-item .lb-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
   .lb-item-self { border-color: var(--good); }
   .lb-item-self .lb-value { color: var(--good); }
-  .card-sparkline { height: 26px; margin: 10px 0 2px; }
-  .card-sparkline svg { width: 100%; height: 100%; display: block; }
+  .card-sparkline { min-height: 26px; margin: 10px 0 2px; }
+  .card-sparkline svg { width: 100%; height: 26px; display: block; }
+  .card-sparkline-caption { font-size: 10px; color: var(--muted); margin-top: 4px; display: flex; align-items: center; gap: 4px; }
+  .card-sparkline-caption .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .card-sparkline-caption .dot-buy { background: var(--accent); }
+  .card-sparkline-caption .dot-sell { background: var(--good); margin-left: 6px; }
   .calc-form { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; margin-bottom: 18px; }
   .calc-field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
   .summary-line { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
@@ -792,7 +796,10 @@
           points.push({ buy: h.usdToUsdtRate, sell: h.usdtToUsdRate });
         });
         points.push({ buy: data.usdToUsdtRate, sell: data.usdtToUsdRate });
-        el.innerHTML = buildSparklineSvg(points);
+        const svg = buildSparklineSvg(points);
+        el.innerHTML = svg
+          ? `${svg}<div class="card-sparkline-caption"><span class="dot dot-buy"></span>Buy<span class="dot dot-sell"></span>Sell<span style="margin-left:4px;">30-day trend</span></div>`
+          : "";
       } catch (e) {
         el.innerHTML = "";
       }
