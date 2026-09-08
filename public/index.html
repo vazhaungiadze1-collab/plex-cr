@@ -118,6 +118,21 @@
   .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; }
   .card.card-self { border: 2px solid var(--good); background: linear-gradient(180deg, rgba(62,207,142,0.12), rgba(62,207,142,0.03)); box-shadow: 0 0 0 1px rgba(62,207,142,0.25); }
   .card.card-self .card-head a { color: var(--good); }
+  .plex-hero {
+    border: 2px solid var(--good);
+    background: linear-gradient(180deg, rgba(62,207,142,0.12), rgba(62,207,142,0.03));
+    box-shadow: 0 0 0 1px rgba(62,207,142,0.25);
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-top: 16px;
+  }
+  .plex-hero-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  .plex-hero-head a { color: var(--good); text-decoration: none; font-weight: 700; font-size: 19px; }
+  .plex-hero-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .plex-stat-label { color: var(--muted); font-size: 13px; margin-bottom: 6px; }
+  .plex-stat-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .plex-stat-value .fee-badge { font-size: 13px; vertical-align: middle; margin-left: 10px; }
+  @media (max-width: 560px) { .plex-hero-stats { grid-template-columns: 1fr; gap: 14px; } }
   .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
   .card-head a { color: var(--text); text-decoration: none; font-weight: 700; font-size: 15px; }
   .badge { font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: 600; white-space: nowrap; }
@@ -253,6 +268,7 @@
           <div class="fee-bars" id="fee-chart-sell"></div>
         </div>
       </div>
+      <div class="plex-hero" id="plex-hero" hidden></div>
       <div class="cards" id="cards"></div>
     </section>
 
@@ -357,6 +373,7 @@
   const userEmail = document.getElementById("user-email");
   const userPhoto = document.getElementById("user-photo");
   const cardsEl = document.getElementById("cards");
+  const plexHeroEl = document.getElementById("plex-hero");
   const loadingEl = document.getElementById("loading");
   const emptyEl = document.getElementById("empty");
 
@@ -497,6 +514,38 @@
       (feeTiers.note ? `<div class="updated">${feeTiers.note.en || feeTiers.note.ka || ""}</div>` : "");
   }
 
+  // A wide, full-width version of the card used only for PLEX's own rates,
+  // shown above the six competitor cards so it reads as the headline row
+  // directly under the fee charts.
+  function renderPlexHero(id, data) {
+    const isStale = hoursSince(data.updatedAt) > STALE_AFTER_HOURS;
+    const badge = data.lastError
+      ? `<span class="badge err">Error</span>`
+      : isStale
+        ? `<span class="badge stale">Stale</span>`
+        : `<span class="badge ok">Live</span>`;
+    const errorLine = data.lastError
+      ? `<div class="error-msg">Last error${data.consecutiveFailures > 1 ? ` (${data.consecutiveFailures}x in a row)` : ""}: ${data.lastError}</div>`
+      : "";
+    return `
+      <div class="plex-hero-head">
+        <a href="${data.website || "#"}" target="_blank" rel="noopener">${data.label || id}</a>
+        ${badge}
+      </div>
+      <div class="plex-hero-stats">
+        <div class="plex-stat">
+          <div class="plex-stat-label">Buy (USD → USDT)</div>
+          <div class="plex-stat-value">${fmtRate(data.usdToUsdtRate)} ${fmtFeePercent(data.usdToUsdtRate)}</div>
+        </div>
+        <div class="plex-stat">
+          <div class="plex-stat-label">Sell (USDT → USD)</div>
+          <div class="plex-stat-value">${fmtRate(data.usdtToUsdRate)} ${fmtFeePercent(data.usdtToUsdRate)}</div>
+        </div>
+      </div>
+      ${errorLine}
+      <div class="updated">Last changed: <strong>${fmtDateTime(data.updatedAt)}</strong></div>`;
+  }
+
   function renderCard(id, data) {
     const isStale = data.type !== "fee_only" && hoursSince(data.updatedAt) > STALE_AFTER_HOURS;
     const badge = data.lastError
@@ -552,11 +601,24 @@
       }
       emptyEl.hidden = true;
       const html = [];
+      let plexDoc = null;
       snap.forEach((d) => {
-        latestRates[d.id] = d.data();
-        html.push(renderCard(d.id, d.data()));
+        const data = d.data();
+        latestRates[d.id] = data;
+        if (data.isSelf) {
+          plexDoc = { id: d.id, data };
+        } else {
+          html.push(renderCard(d.id, data));
+        }
       });
       cardsEl.innerHTML = html.join("");
+      if (plexDoc) {
+        plexHeroEl.hidden = false;
+        plexHeroEl.innerHTML = renderPlexHero(plexDoc.id, plexDoc.data);
+      } else {
+        plexHeroEl.hidden = true;
+        plexHeroEl.innerHTML = "";
+      }
       // Keep the other two tabs in sync with whatever just changed.
       renderLeaderboard();
       renderCalculatorComparison();
