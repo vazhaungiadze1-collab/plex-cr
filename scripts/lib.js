@@ -65,12 +65,27 @@ async function fetchJsonOnce(url, referer) {
  * JSON GET with automatic retries. A single flaky request (timeout, 502 from
  * the target site, a brief network hiccup) should not mark a whole company as
  * failed for the run — most of these sites occasionally blip under load.
+ *
+ * `validate`, when given, is called with the parsed JSON on every attempt and
+ * should return an error-message string if the shape is wrong, or a falsy
+ * value if it looks good. This matters because a request that a site's
+ * anti-bot/rate-limit layer intercepts often still comes back as HTTP 200
+ * with valid-but-different JSON (not a thrown network error), so without this
+ * the retry loop above would never see it as a failure worth retrying — the
+ * caller would only find out after already giving up. Folding validation
+ * into the same retry loop means a transient block gets the same
+ * retry+backoff chance to clear as an ordinary network hiccup.
  */
-async function fetchJson(url, referer) {
+async function fetchJson(url, referer, validate) {
   let lastErr;
   for (let attempt = 0; attempt < RETRY_ATTEMPTS; attempt++) {
     try {
-      return await fetchJsonOnce(url, referer);
+      const json = await fetchJsonOnce(url, referer);
+      if (validate) {
+        const validationError = validate(json);
+        if (validationError) throw new Error(validationError);
+      }
+      return json;
     } catch (err) {
       lastErr = err;
       if (attempt < RETRY_ATTEMPTS - 1) {
@@ -92,12 +107,12 @@ async function fetchJson(url, referer) {
 async function fetchExchangerPlatformRate(base, routeId) {
   const url =
     `${base}/service/api/v1/public/exchanger/route/get/one/?id=${routeId}&lang=en`;
-  const json = await fetchJson(url, base + "/");
-  const route = json && json.data && json.data.route;
-  const rate = route && route.rate;
-  if (!rate || (rate.rateFullNumber === undefined && rate.in === undefined)) {
-    throw new Error(`unexpected response shape for routeId=${routeId}`);
-  }
+  const json = await fetchJson(url, base + "/", (j) => {
+    const rate = j && j.data && j.data.route && j.data.route.rate;
+    const looksValid = rate && (rate.rateFullNumber !== undefined || rate.in !== undefined);
+    return looksValid ? null : `unexpected response shape for routeId=${routeId}`;
+  });
+  const rate = json.data.route.rate;
   return Number(rate.rateFullNumber !== undefined ? rate.rateFullNumber : rate.in);
 }
 
@@ -165,12 +180,16 @@ const COMPANIES = {
     async fetchRates() {
       const base = "https://gauscrypto.com";
       // operations/{giveCurrencyId}/{receiveCurrencyId}; 1 = USDT TRC20, 2 = US Dollar.
+      const validateCourse = (j) =>
+        (j && j.attributes && j.attributes.course && j.attributes.course.rate)
+          ? null
+          : "unexpected response shape from gauscrypto rates API";
       const sellJson = await fetchJson(
-          `${base}/apis/client-api/v1/rates/operations/1/2`, base + "/"); // give USDT, receive USD
+          `${base}/apis/client-api/v1/rates/operations/1/2`, base + "/", validateCourse); // give USDT, receive USD
       const buyJson = await fetchJson(
-          `${base}/apis/client-api/v1/rates/operations/2/1`, base + "/"); // give USD, receive USDT
-      const sellRaw = Number(sellJson && sellJson.attributes && sellJson.attributes.course && sellJson.attributes.course.rate);
-      const buyRaw = Number(buyJson && buyJson.attributes && buyJson.attributes.course && buyJson.attributes.course.rate);
+          `${base}/apis/client-api/v1/rates/operations/2/1`, base + "/", validateCourse); // give USD, receive USDT
+      const sellRaw = Number(sellJson.attributes.course.rate);
+      const buyRaw = Number(buyJson.attributes.course.rate);
       if (!sellRaw || !buyRaw) {
         throw new Error("unexpected response shape from gauscrypto rates API");
       }
