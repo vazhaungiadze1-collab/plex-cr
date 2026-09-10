@@ -97,6 +97,39 @@ async function fetchJson(url, referer, validate) {
 }
 
 /**
+ * Best-effort fallback for when a site's own anti-bot layer persistently
+ * blocks GitHub Actions' IP range with an HTTP 403 that fetchJson's retries
+ * cannot get past (confirmed by hand: the same URL works fine from a normal,
+ * non-datacenter IP). Routes the request through a public CORS proxy so it
+ * originates from a different IP range instead.
+ *
+ * This is NOT a guaranteed fix — the proxy's own IP can end up blocked too,
+ * and a free public proxy is inherently less reliable than a direct fetch —
+ * so it is only tried once, after the direct path has already exhausted its
+ * own retries, and its result goes through the same shape validation.
+ */
+async function fetchJsonViaProxy(url, validate) {
+  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(proxyUrl, {
+      headers: {"Accept": "application/json, text/plain, */*"},
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`proxy HTTP ${res.status} for ${url}`);
+    const json = await res.json();
+    if (validate) {
+      const validationError = validate(json);
+      if (validationError) throw new Error(`proxy: ${validationError}`);
+    }
+    return json;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * Werty / GeCrypto / Alltrust / Bitcasa all run on the same white-label
  * "exchanger" platform, exposing:
  *   GET {base}/service/api/v1/public/exchanger/route/get/one/?id={routeId}
@@ -107,11 +140,21 @@ async function fetchJson(url, referer, validate) {
 async function fetchExchangerPlatformRate(base, routeId) {
   const url =
     `${base}/service/api/v1/public/exchanger/route/get/one/?id=${routeId}&lang=en`;
-  const json = await fetchJson(url, base + "/", (j) => {
+  const validate = (j) => {
     const rate = j && j.data && j.data.route && j.data.route.rate;
     const looksValid = rate && (rate.rateFullNumber !== undefined || rate.in !== undefined);
     return looksValid ? null : `unexpected response shape for routeId=${routeId}`;
-  });
+  };
+  let json;
+  try {
+    json = await fetchJson(url, base + "/", validate);
+  } catch (directErr) {
+    try {
+      json = await fetchJsonViaProxy(url, validate);
+    } catch (proxyErr) {
+      throw directErr; // the direct error is the more informative one to log
+    }
+  }
   const rate = json.data.route.rate;
   return Number(rate.rateFullNumber !== undefined ? rate.rateFullNumber : rate.in);
 }

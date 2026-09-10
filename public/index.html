@@ -695,6 +695,7 @@
   // Rates tab
   // -----------------------------------------------------------------------
   const STALE_AFTER_HOURS = 20; // updates run at 09:00/15:00/21:00 — a gap this long means every run today failed
+  const ERROR_DISPLAY_THRESHOLD = 3; // tolerate 1-2 failed scheduled runs silently (still show the last known-good rate as Live) — only surface Error once it has failed this many times in a row, so a short-lived block does not read as a real outage
 
   let latestRates = {}; // key -> data, kept for the Analytics leaderboard and the Calculator
 
@@ -718,13 +719,14 @@
   // directly under the fee charts.
   function renderPlexHero(id, data) {
     const isStale = hoursSince(data.updatedAt) > STALE_AFTER_HOURS;
-    const badge = data.lastError
+    const showError = data.lastError && (data.consecutiveFailures || 0) >= ERROR_DISPLAY_THRESHOLD;
+    const badge = showError
       ? `<span class="badge err">Error</span>`
       : isStale
         ? `<span class="badge stale">Stale</span>`
         : `<span class="badge live">Live</span>`;
-    const errorLine = data.lastError
-      ? `<div class="error-msg">Last error${data.consecutiveFailures > 1 ? ` (${data.consecutiveFailures}x in a row)` : ""}: ${data.lastError}</div>`
+    const errorLine = showError
+      ? `<div class="error-msg">Last error (${data.consecutiveFailures}x in a row): ${data.lastError}</div>`
       : "";
     return `
       <div class="plex-hero-head">
@@ -877,7 +879,8 @@
 
   function renderCard(id, data) {
     const isStale = data.type !== "fee_only" && hoursSince(data.updatedAt) > STALE_AFTER_HOURS;
-    const badge = data.lastError
+    const showError = data.lastError && (data.consecutiveFailures || 0) >= ERROR_DISPLAY_THRESHOLD;
+    const badge = showError
       ? `<span class="badge err">Error</span>`
       : isStale
         ? `<span class="badge stale">Stale</span>`
@@ -898,8 +901,8 @@
         </div>`;
     }
 
-    const errorLine = data.lastError
-      ? `<div class="error-msg">Last error${data.consecutiveFailures > 1 ? ` (${data.consecutiveFailures}x in a row)` : ""}: ${data.lastError}</div>`
+    const errorLine = showError
+      ? `<div class="error-msg">Last error (${data.consecutiveFailures}x in a row): ${data.lastError}</div>`
       : "";
 
     const cardTooltip = data.type === "fee_only"
