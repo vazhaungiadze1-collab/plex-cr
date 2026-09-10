@@ -32,8 +32,8 @@ const UA =
   "(KHTML, like Gecko) Chrome/124.0 Safari/537.36 PLEX-RateBot/1.0";
 
 const FETCH_TIMEOUT_MS = 15000;
-const RETRY_ATTEMPTS = 3;
-const RETRY_DELAYS_MS = [500, 2000]; // between attempts 1->2 and 2->3
+const RETRY_ATTEMPTS = 5;
+const RETRY_DELAYS_MS = [1000, 3000, 6000, 12000]; // between attempts 1->2, 2->3, 3->4, 4->5 — wider spread gives a short-lived block (e.g. Cloudflare rate-limit) more room to clear within one run
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
