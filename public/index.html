@@ -694,7 +694,7 @@
   // -----------------------------------------------------------------------
   // Rates tab
   // -----------------------------------------------------------------------
-  const STALE_AFTER_HOURS = 20; // updates run at 09:00/15:00/21:00 — a gap this long means every run today failed
+      const STALE_AFTER_HOURS = 30; // updates run once/day at 09:00 -- a gap this long means the daily run is overdue (24h cadence plus a buffer for a late or skipped GitHub Actions run)
   const ERROR_DISPLAY_THRESHOLD = 3; // tolerate 1-2 failed scheduled runs silently (still show the last known-good rate as Live) — only surface Error once it has failed this many times in a row, so a short-lived block does not read as a real outage
 
   let latestRates = {}; // key -> data, kept for the Analytics leaderboard and the Calculator
