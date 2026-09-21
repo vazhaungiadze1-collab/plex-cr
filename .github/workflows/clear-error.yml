@@ -1,0 +1,36 @@
+name: Clear error badge
+
+# One-off maintenance tool: run manually to clear the red "Error" badge for
+# one company on the dashboard (resets lastError/consecutiveFailures in
+# Firestore). Does not fix the underlying cause -- if the site is still
+# blocking us, the badge will start climbing again on the next scheduled run.
+on:
+  workflow_dispatch:
+    inputs:
+      company:
+        description: "Company key to clear, e.g. alltrust"
+        required: true
+        default: "alltrust"
+
+jobs:
+  clear:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: scripts
+        run: npm install --omit=dev
+
+      - name: Clear error
+        working-directory: scripts
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node clear-error.js ${{ github.event.inputs.company }}
+
