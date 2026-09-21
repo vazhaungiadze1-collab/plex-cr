@@ -87,6 +87,7 @@
   #user-area { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
   #user-bar { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
   #user-bar img { width: 28px; height: 28px; border-radius: 50%; }
+  .clocks-row { display: flex; align-items: flex-start; gap: 22px; }
   .tbilisi-clock-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
   .tbilisi-clock-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
   .seven-seg-clock { display: flex; align-items: center; gap: 4px; }
@@ -354,7 +355,7 @@
   <header>
     <div>
       <h1>PLEX — Competitor Rates</h1>
-      <p>USD ⇄ USDT, refreshed multiple times a day</p>
+      <p>USD ⇄ USDT, refreshed daily at 09:00 Tbilisi time</p>
     </div>
     <div id="user-area">
       <div id="user-bar">
@@ -362,9 +363,15 @@
         <span id="user-email"></span>
         <button class="secondary" id="signout-btn">Sign out</button>
       </div>
+      <div class="clocks-row">
       <div class="tbilisi-clock-wrap" data-tooltip="Current time in Tbilisi, Georgia (UTC+4) — updates live every second.">
         <div class="tbilisi-clock-label">Tbilisi time</div>
         <div class="seven-seg-clock" id="tbilisi-clock"></div>
+      </div>
+      <div class="tbilisi-clock-wrap" id="next-update-wrap" data-tooltip="Time remaining until the next rates update. Rates update daily at 09:00 (Tbilisi time).">
+        <div class="tbilisi-clock-label">Next update in</div>
+        <div class="seven-seg-clock" id="next-update-clock"></div>
+      </div>
       </div>
     </div>
   </header>
@@ -695,7 +702,7 @@
   // Rates tab
   // -----------------------------------------------------------------------
       const STALE_AFTER_HOURS = 30; // updates run once/day at 09:00 -- a gap this long means the daily run is overdue (24h cadence plus a buffer for a late or skipped GitHub Actions run)
-  const ERROR_DISPLAY_THRESHOLD = 3; // tolerate 1-2 failed scheduled runs silently (still show the last known-good rate as Live) — only surface Error once it has failed this many times in a row, so a short-lived block does not read as a real outage
+  const ERROR_DISPLAY_THRESHOLD = 1; // surface Error as soon as a single scheduled run fails, so a real block is never hidden behind a "Live"/"Stale" badge
 
   let latestRates = {}; // key -> data, kept for the Analytics leaderboard and the Calculator
 
@@ -907,7 +914,7 @@
 
     const cardTooltip = data.type === "fee_only"
       ? `${data.label || id} doesn't publish one flat rate — instead a tiered commission schedule based on transaction size, shown below for both buying and selling.`
-      : `${data.label || id}'s live USD ⇄ USDT rates, checked automatically several times a day. Buy = USD needed for 1 USDT, Sell = USDT needed for 1 USD — lower is better for the client on both.`;
+      : `${data.label || id}'s live USD ⇄ USDT rates, checked automatically once a day. Buy = USD needed for 1 USDT, Sell = USDT needed for 1 USD — lower is better for the client on both.`;
     return `
       <div class="card${data.isSelf ? " card-self" : ""}" data-tooltip="${cardTooltip.replace(/"/g, "&quot;")}">
         <div class="card-head">
@@ -1588,8 +1595,56 @@
       buildSevenSegDigit(ss[0]) + buildSevenSegDigit(ss[1]);
   }
 
-  renderTbilisiClock();
-  setInterval(renderTbilisiClock, 1000);
+  // -----------------------------------------------------------------------
+  // "Next update in" countdown — time remaining until the daily 09:00
+  // Tbilisi (05:00 UTC) scheduled run, rendered the same way as the clock
+  // above. Georgia does not observe DST, so Tbilisi is a fixed UTC+4 and
+  // "05:00 UTC" is always exactly "09:00 Tbilisi".
+  // -----------------------------------------------------------------------
+  function getNextUpdateTime(now) {
+    const next = new Date(Date.UTC(
+        now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 5, 0, 0, 0));
+    if (next <= now) next.setUTCDate(next.getUTCDate() + 1);
+    return next;
+  }
+
+  function formatDurationWords(totalSec) {
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    if (h > 0 && m > 0) return `${h}h ${m}m`;
+    if (h > 0) return `${h}h`;
+    return `${m}m`;
+  }
+
+  function renderNextUpdateClock() {
+    const el = document.getElementById("next-update-clock");
+    const wrap = document.getElementById("next-update-wrap");
+    if (!el || !wrap) return;
+    const now = new Date();
+    const next = getNextUpdateTime(now);
+    const totalSec = Math.max(0, Math.floor((next - now) / 1000));
+    const hh = String(Math.floor(totalSec / 3600)).padStart(2, "0");
+    const mm = String(Math.floor((totalSec % 3600) / 60)).padStart(2, "0");
+    const ss = String(totalSec % 60).padStart(2, "0");
+    const colonClass = now.getSeconds() % 2 === 0 ? " on" : "";
+    const colon = `<div class="ssc-colon"><i class="${colonClass.trim()}"></i><i class="${colonClass.trim()}"></i></div>`;
+    el.innerHTML =
+      buildSevenSegDigit(hh[0]) + buildSevenSegDigit(hh[1]) + colon +
+      buildSevenSegDigit(mm[0]) + buildSevenSegDigit(mm[1]) + colon +
+      buildSevenSegDigit(ss[0]) + buildSevenSegDigit(ss[1]);
+    wrap.setAttribute(
+        "data-tooltip",
+        `${formatDurationWords(totalSec)} remaining until the next rates update. Rates update daily at 09:00 (Tbilisi time).`,
+    );
+  }
+
+  function tickHeaderClocks() {
+    renderTbilisiClock();
+    renderNextUpdateClock();
+  }
+
+  tickHeaderClocks();
+  setInterval(tickHeaderClocks, 1000);
 </script>
 </body>
 </html>
