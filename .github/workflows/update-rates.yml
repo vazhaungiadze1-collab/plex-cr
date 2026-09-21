@@ -1,11 +1,11 @@
 name: Update competitor rates
 
-# Runs 3x/day (09:00, 15:00, 21:00 Asia/Tbilisi = 05:00, 11:00, 17:00 UTC).
+# Runs once a day, at 09:00 Asia/Tbilisi (05:00 UTC).
 # Can also be run manually from the "Actions" tab in GitHub (workflow_dispatch)
 # — do this once right after setup to populate Firestore immediately.
 on:
   schedule:
-    - cron: "0 5,11,17 * * *"
+        - cron: "0 5 * * *"
   workflow_dispatch: {}
 
 jobs:
