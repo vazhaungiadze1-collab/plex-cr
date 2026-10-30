@@ -1,0 +1,29 @@
+name: Test Alltrust HTML page reachability
+
+# One-off diagnostic: check whether alltrust.me's public exchange page (not
+# the internal API, which we already know returns HTTP 403 from GitHub
+# Actions runners) is also blocked from this same IP range, or whether it
+# comes through clean. Read-only -- writes nothing to Firestore or anywhere
+# else. Safe to delete once we have the answer.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch alltrust.me pages and report status
+        run: |
+          echo "--- Homepage ---"
+          curl -s -o /dev/null -w "HTTP %{http_code}\n" "https://alltrust.me/en/"
+
+          echo "--- Buy page (USD -> USDT) ---"
+          curl -s -o buy.html -w "HTTP %{http_code}\n" "https://alltrust.me/en/?currency_from=TBC+OPB+USD&currency_to=USDTTRC20" -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+          grep -o 'exchange-rate__text"[^<]*<[^>]*>[^<]*' buy.html | head -1 || echo "rate text not found in response"
+
+          echo "--- Sell page (USDT -> USD) ---"
+          curl -s -o sell.html -w "HTTP %{http_code}\n" "https://alltrust.me/en/?currency_from=USDTTRC20&currency_to=TBC+OPB+USD" -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+          grep -o 'exchange-rate__text"[^<]*<[^>]*>[^<]*' sell.html | head -1 || echo "rate text not found in response"
+
+          echo "--- Known-blocked API endpoint, for comparison ---"
+          curl -s -o /dev/null -w "HTTP %{http_code}\n" "https://alltrust.me/service/api/v1/public/exchanger/route/get/one/?id=650ea14bc854282201557564&lang=en"
