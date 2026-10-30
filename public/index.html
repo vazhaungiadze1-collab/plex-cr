@@ -138,6 +138,10 @@
   .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; }
   .card.card-self { border: 2px solid var(--good); background: linear-gradient(180deg, rgba(62,207,142,0.12), rgba(62,207,142,0.03)); box-shadow: 0 0 0 1px rgba(62,207,142,0.25); }
   .card.card-self .card-head a { color: var(--good); }
+  .card.card-link-only { cursor: pointer; transition: border-color .15s ease; }
+  .card.card-link-only:hover { border-color: var(--accent); }
+  .link-only-row .label { color: var(--text); white-space: normal; }
+  .link-only-cta { margin-top: 10px; font-size: 13px; color: var(--accent); font-weight: 600; }
   .plex-hero {
     border: 2px solid var(--good);
     background: linear-gradient(180deg, rgba(62,207,142,0.12), rgba(62,207,142,0.03));
@@ -859,7 +863,7 @@
     const days = 30;
     const cutoff = new Date(Date.now() - days * 86400000);
     for (const [key, data] of Object.entries(latestRates)) {
-      if (data.type === "fee_only") continue;
+      if (data.type === "fee_only" || data.type === "link_only") continue;
       const el = document.getElementById(`spark-${key}`);
       if (!el) continue;
       try {
@@ -885,17 +889,25 @@
   }
 
   function renderCard(id, data) {
-    const isStale = data.type !== "fee_only" && hoursSince(data.updatedAt) > STALE_AFTER_HOURS;
-    const showError = data.lastError && (data.consecutiveFailures || 0) >= ERROR_DISPLAY_THRESHOLD;
-    const badge = showError
-      ? `<span class="badge err">Error</span>`
-      : isStale
-        ? `<span class="badge stale">Stale</span>`
-        : `<span class="badge live">Live</span>`;
+    const isStale = data.type !== "fee_only" && data.type !== "link_only" && hoursSince(data.updatedAt) > STALE_AFTER_HOURS;
+    const showError = data.type !== "link_only" && data.lastError && (data.consecutiveFailures || 0) >= ERROR_DISPLAY_THRESHOLD;
+    const badge = data.type === "link_only"
+      ? ""
+      : showError
+        ? `<span class="badge err">Error</span>`
+        : isStale
+          ? `<span class="badge stale">Stale</span>`
+          : `<span class="badge live">Live</span>`;
 
     let body;
     if (data.type === "fee_only") {
       body = renderFeeTable(data.feeTiers);
+    } else if (data.type === "link_only") {
+      body = `
+        <div class="row link-only-row">
+          <span class="label">Live rates aren't tracked automatically for ${data.label || id}.</span>
+        </div>
+        <div class="link-only-cta">Click through to see current rates on their website →</div>`;
     } else {
       body = `
         <div class="row">
@@ -914,18 +926,23 @@
 
     const cardTooltip = data.type === "fee_only"
       ? `${data.label || id} doesn't publish one flat rate — instead a tiered commission schedule based on transaction size, shown below for both buying and selling.`
-      : `${data.label || id}'s live USD ⇄ USDT rates, checked automatically once a day. Buy = USD needed for 1 USDT, Sell = USDT needed for 1 USD — lower is better for the client on both.`;
+      : data.type === "link_only"
+        ? `${data.label || id}'s rates aren't tracked automatically — click anywhere on this card to visit their website for current rates.`
+        : `${data.label || id}'s live USD ⇄ USDT rates, checked automatically once a day. Buy = USD needed for 1 USDT, Sell = USDT needed for 1 USD — lower is better for the client on both.`;
+    const linkOnlyClick = data.type === "link_only" && data.website
+      ? ` onclick="if (!event.target.closest('a')) window.open('${data.website}', '_blank', 'noopener')"`
+      : "";
     return `
-      <div class="card${data.isSelf ? " card-self" : ""}" data-tooltip="${cardTooltip.replace(/"/g, "&quot;")}">
+      <div class="card${data.isSelf ? " card-self" : ""}${data.type === "link_only" ? " card-link-only" : ""}" data-tooltip="${cardTooltip.replace(/"/g, "&quot;")}"${linkOnlyClick}>
         <div class="card-head">
           <a href="${data.website || "#"}" target="_blank" rel="noopener">${data.label || id}</a>
           ${badge}
         </div>
         ${body}
-        ${data.type !== "fee_only" ? `<div class="card-sparkline" id="spark-${id}"></div>` : ""}
+        ${data.type !== "fee_only" && data.type !== "link_only" ? `<div class="card-sparkline" id="spark-${id}"></div>` : ""}
         ${renderLinkRow(id, data)}
         ${errorLine}
-        <div class="updated">Last changed: <strong>${fmtDateTime(data.updatedAt)}</strong></div>
+        ${data.type !== "link_only" ? `<div class="updated">Last changed: <strong>${fmtDateTime(data.updatedAt)}</strong></div>` : ""}
       </div>`;
   }
 
@@ -1080,7 +1097,7 @@
     const cutoff = new Date(Date.now() - days * 86400000);
     const byCompanyByDate = {};
     for (const [key, data] of Object.entries(latestRates)) {
-      if (data.type === "fee_only") continue;
+      if (data.type === "fee_only" || data.type === "link_only") continue;
       const snap = await getDocs(query(
           collection(db, "rates", key, "history"),
           where("capturedAt", ">=", cutoff),
@@ -1141,7 +1158,7 @@
     const cutoff = new Date(Date.now() - days * 86400000);
     const rows = [];
     for (const [key, data] of Object.entries(latestRates)) {
-      if (data.type === "fee_only") continue;
+      if (data.type === "fee_only" || data.type === "link_only") continue;
       const changesSnap = await getDocs(query(
           collection(db, "rates", key, "changes"),
           where("changedAt", ">=", cutoff),
@@ -1179,7 +1196,7 @@
     const buyAvgs = [];
     const sellAvgs = [];
     for (const [key, data] of Object.entries(latestRates)) {
-      if (data.type === "fee_only") continue;
+      if (data.type === "fee_only" || data.type === "link_only") continue;
       const histSnap = await getDocs(query(
           collection(db, "rates", key, "history"),
           where("capturedAt", ">=", cutoff),
