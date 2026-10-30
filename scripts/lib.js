@@ -193,18 +193,6 @@ const COMPANIES = {
       return {usdToUsdtRate, usdtToUsdRate};
     },
   },
-  alltrust: {
-    label: "Alltrust",
-    website: "https://alltrust.me",
-    async fetchRates() {
-      const base = "https://alltrust.me";
-      const usdToUsdtRate = await fetchExchangerPlatformRate(
-          base, "650ea14bc854282201557564"); // Cash USD (Tbilisi Center) -> USDT
-      const usdtToUsdRate = await fetchExchangerPlatformRate(
-          base, "650ea4394757be4abd70e687"); // USDT -> Cash USD (Tbilisi Center)
-      return {usdToUsdtRate, usdtToUsdRate};
-    },
-  },
   bitcasa: {
     label: "Bitcasa",
     website: "https://www.bitcasa.ge",
