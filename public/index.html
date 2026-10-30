@@ -705,7 +705,7 @@
   // -----------------------------------------------------------------------
   // Rates tab
   // -----------------------------------------------------------------------
-      const STALE_AFTER_HOURS = 30; // updates run once/day at 09:00 -- a gap this long means the daily run is overdue (24h cadence plus a buffer for a late or skipped GitHub Actions run)
+      const STALE_AFTER_HOURS = 3; // updates run once/hour -- a gap this long means a run is overdue (1h cadence plus a buffer for a late or skipped GitHub Actions run)
   const ERROR_DISPLAY_THRESHOLD = 1; // surface Error as soon as a single scheduled run fails, so a real block is never hidden behind a "Live"/"Stale" badge
 
   let latestRates = {}; // key -> data, kept for the Analytics leaderboard and the Calculator
@@ -1613,15 +1613,15 @@
   }
 
   // -----------------------------------------------------------------------
-  // "Next update in" countdown — time remaining until the daily 09:00
-  // Tbilisi (05:00 UTC) scheduled run, rendered the same way as the clock
-  // above. Georgia does not observe DST, so Tbilisi is a fixed UTC+4 and
-  // "05:00 UTC" is always exactly "09:00 Tbilisi".
+  // "Next update in" countdown — time remaining until the next hourly
+  // scheduled run (GitHub Actions cron runs at minute 0 of every UTC
+  // hour), rendered the same way as the clock above. Georgia does not
+  // observe DST, so this works the same regardless of local time zone.
   // -----------------------------------------------------------------------
   function getNextUpdateTime(now) {
     const next = new Date(Date.UTC(
-        now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 5, 0, 0, 0));
-    if (next <= now) next.setUTCDate(next.getUTCDate() + 1);
+        now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), 0, 0, 0));
+    if (next <= now) next.setUTCHours(next.getUTCHours() + 1);
     return next;
   }
 
@@ -1651,7 +1651,7 @@
       buildSevenSegDigit(ss[0]) + buildSevenSegDigit(ss[1]);
     wrap.setAttribute(
         "data-tooltip",
-        `${formatDurationWords(totalSec)} remaining until the next rates update. Rates update daily at 09:00 (Tbilisi time).`,
+        `${formatDurationWords(totalSec)} remaining until the next rates update. Rates update every hour, on the hour (UTC).`,
     );
   }
 
