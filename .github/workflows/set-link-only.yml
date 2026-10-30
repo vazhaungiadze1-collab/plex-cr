@@ -1,0 +1,39 @@
+name: Set company to link-only mode
+
+# One-off maintenance tool: converts a company's dashboard card into a
+# "visit the website" link-out card. Clears its tracked rate data and
+# history in Firestore and marks it type: "link_only", so the dashboard
+# stops showing (now-unreliable) Buy/Sell numbers for it and instead shows
+# just the logo/social links, with the whole card clicking through to the
+# company's site. Make sure the company is already removed from COMPANIES
+# in scripts/lib.js first, or the next scheduled run will refetch and
+# overwrite this back to a normal rate card.
+on:
+  workflow_dispatch:
+    inputs:
+      company:
+        description: "Company key to convert, e.g. alltrust"
+        required: true
+        default: "alltrust"
+
+jobs:
+  set-link-only:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: scripts
+        run: npm install --omit=dev
+
+      - name: Set link-only
+        working-directory: scripts
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node set-link-only.js ${{ github.event.inputs.company }}
